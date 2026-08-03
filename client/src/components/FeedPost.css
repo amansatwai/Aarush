@@ -1,0 +1,133 @@
+.feed-post {
+  width: 100%;
+  border-radius: 28px;
+  background: rgba(10, 18, 34, 0.58);
+  border: 1px solid rgba(255,255,255,0.07);
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.26);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.feed-post-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 12px;
+}
+
+.feed-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.feed-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(59,130,246,0.28);
+  box-shadow: 0 0 16px rgba(59,130,246,0.16);
+}
+
+.feed-user-meta {
+  min-width: 0;
+}
+
+.feed-username-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.feed-username {
+  font-weight: 900;
+  color: #fff;
+}
+
+.feed-verified-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1d9bf0, #4c7dff);
+  box-shadow: 0 0 12px rgba(29,155,240,0.4);
+}
+
+.feed-time {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: rgba(219,234,254,0.72);
+}
+
+.feed-menu-btn,
+.feed-action-btn {
+  border: 0;
+  background: transparent;
+  color: #eaf2ff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.feed-menu-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+}
+
+.feed-media {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #09111e;
+}
+
+.feed-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.feed-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px 10px;
+}
+
+.feed-actions-left {
+  display: flex;
+  gap: 10px;
+}
+
+.feed-action-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+}
+
+.feed-caption {
+  padding: 0 14px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  color: #eaf2ff;
+}
+
+.feed-caption-user {
+  font-weight: 900;
+}
+
+.feed-caption-text {
+  color: rgba(226,232,240,0.88);
+  line-height: 1.5;
+  word-break: break-word;
+}
