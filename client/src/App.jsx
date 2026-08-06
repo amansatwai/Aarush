@@ -1,183 +1,523 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import HomeFeed from "./pages/HomeFeed";
-import SearchPage from "./pages/SearchPage";
-import ReelsPage from "./pages/ReelsPage";
-import ProfilePage from "./pages/ProfilePage";
-import NotificationsPage from "./pages/NotificationsPage";
-import ChatsPage from "./pages/ChatsPage";
-import ChatScreen from "./pages/ChatScreen";
-import BottomNav from "./components/BottomNav";
-import AccountDrawer from "./components/AccountDrawer";
-import GazeLockPanel from "./components/GazeLockPanel";
-import OneTapLockPanel from "./components/OneTapLockPanel";
-import UploadSheet from "./components/UploadSheet";
-import "./App.css";
+import { useEffect, useState } from 'react';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
+import { ShieldCheck, Lock } from 'lucide-react';
 
-const HOME = "home";
+import Splash from './pages/Splash';
+import Welcome from './pages/Welcome';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import HomeFeed from './pages/HomeFeed';
+import ReelsPage from './pages/ReelsPage';
+import SearchPage from './pages/SearchPage';
+import UploadPage from './pages/UploadPage';
+import ProfilePage from './pages/ProfilePage';
+import NotificationsPage from './pages/NotificationsPage';
+import ChatsPage from './pages/ChatsPage';
+import PrivacyCenter from './pages/PrivacyCenter';
+import AccountSwitchPage from './pages/AccountSwitchPage';
+import LogoutSessionPage from './pages/LogoutSessionPage';
+import GestureLayer from './components/GestureLayer';
+import TwoFingerGestureLayer from './components/TwoFingerGestureLayer';
+import { supabase } from './lib/supabase';
+import './App.css';
 
-export default function App() {
-  const [route, setRoute] = useState(HOME);
-  const [historyStack, setHistoryStack] = useState([HOME]);
+const ONE_TAP_LOCK_KEY = 'aarush_one_tap_lock_enabled';
+const GAZE_LOCK_KEY = 'aarush_gaze_lock_enabled';
 
-  const [profile] = useState({
-    username: "aarush",
-    full_name: "Aarush",
-    bio: "Premium social experience.",
-    website: "aarush.app",
-    avatar_url: "https://via.placeholder.com/240",
-    is_verified: true,
-    followers_count: 24800,
-    following_count: 341,
-    posts_count: 128,
-  });
+const publicRoutes = [
+  '/welcome',
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/splash',
+];
 
-  const [currentUser] = useState({ id: 1 });
-  const [dataSaverEnabled, setDataSaverEnabled] = useState(false);
+function LoadingScreen() {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '1rem',
+        background:
+          'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+        color: '#f4f7ff',
+      }}
+    >
+      <div
+        style={{
+          width: 'min(100%, 380px)',
+          padding: '1.5rem',
+          borderRadius: '1.5rem',
+          background: 'rgba(15,19,30,0.92)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 24px 70px rgba(0,0,0,0.38)',
+          textAlign: 'center',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
+        <div
+          style={{
+            width: '4rem',
+            height: '4rem',
+            margin: '0 auto 1rem',
+            borderRadius: '1.25rem',
+            display: 'grid',
+            placeItems: 'center',
+            background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+            color: '#fff',
+            boxShadow: '0 0 32px rgba(124,92,255,0.28)',
+            animation: 'aarush-loading-pulse 1.5s ease-in-out infinite',
+          }}
+        >
+          <ShieldCheck size={28} />
+        </div>
 
-  const [gazeLockEnabled, setGazeLockEnabled] = useState(false);
-  const [oneTapLockEnabled, setOneTapLockEnabled] = useState(false);
+        <strong style={{ display: 'block', fontSize: '1.06rem' }}>
+          Preparing Aarush
+        </strong>
 
-  const [accountDrawerOpen, setAccountDrawerOpen] = useState(false);
-  const [uploadSheetOpen, setUploadSheetOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [chatsOpen, setChatsOpen] = useState(false);
+        <span
+          style={{
+            display: 'block',
+            marginTop: '0.35rem',
+            color: '#96a3bf',
+            fontSize: '0.82rem',
+          }}
+        >
+          Restoring your secure session…
+        </span>
+      </div>
 
-  const routeRef = useRef(route);
-  const drawerRef = useRef(accountDrawerOpen);
-  const uploadRef = useRef(uploadSheetOpen);
-  const gazeRef = useRef(gazeLockEnabled);
-  const oneTapRef = useRef(oneTapLockEnabled);
+      <style>{`
+        @keyframes aarush-loading-pulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 0.82;
+          }
 
-  useEffect(() => { routeRef.current = route; }, [route]);
-  useEffect(() => { drawerRef.current = accountDrawerOpen; }, [accountDrawerOpen]);
-  useEffect(() => { uploadRef.current = uploadSheetOpen; }, [uploadSheetOpen]);
-  useEffect(() => { gazeRef.current = gazeLockEnabled; }, [gazeLockEnabled]);
-  useEffect(() => { oneTapRef.current = oneTapLockEnabled; }, [oneTapLockEnabled]);
-
-  function pushHistory(next) {
-    if (next === routeRef.current) return;
-    setHistoryStack((prev) => [...prev, routeRef.current]);
-    setRoute(next);
-    window.history.pushState({ route: next }, "", window.location.pathname);
-  }
-
-  function goBack() {
-    if (accountDrawerOpen) return setAccountDrawerOpen(false);
-    if (uploadSheetOpen) return setUploadSheetOpen(false);
-    if (notificationsOpen) return setNotificationsOpen(false);
-    if (chatsOpen) return setChatsOpen(false);
-    if (gazeLockEnabled) return setGazeLockEnabled(false);
-    if (oneTapLockEnabled) return setOneTapLockEnabled(false);
-
-    setHistoryStack((prev) => {
-      if (prev.length <= 1) {
-        setRoute(HOME);
-        return [HOME];
-      }
-      const nextStack = prev.slice(0, -1);
-      const prevRoute = nextStack[nextStack.length - 1] || HOME;
-      setRoute(prevRoute);
-      return nextStack;
-    });
-  }
-
-  useEffect(() => {
-    const onPopState = () => {
-      if (accountDrawerOpen) return setAccountDrawerOpen(false);
-      if (uploadSheetOpen) return setUploadSheetOpen(false);
-      if (notificationsOpen) return setNotificationsOpen(false);
-      if (chatsOpen) return setChatsOpen(false);
-      if (gazeLockEnabled) return setGazeLockEnabled(false);
-      if (oneTapLockEnabled) return setOneTapLockEnabled(false);
-
-      setHistoryStack((prev) => {
-        if (prev.length <= 1) {
-          setRoute(HOME);
-          return [HOME];
+          50% {
+            transform: scale(1.06);
+            opacity: 1;
+          }
         }
-        const nextStack = prev.slice(0, -1);
-        setRoute(nextStack[nextStack.length - 1] || HOME);
-        return nextStack;
-      });
-    };
+      `}</style>
+    </div>
+  );
+}
 
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [accountDrawerOpen, uploadSheetOpen, notificationsOpen, chatsOpen, gazeLockEnabled, oneTapLockEnabled]);
+function ProtectedRoute({ session, children }) {
+  if (!session) {
+    return <Navigate to="/welcome" replace />;
+  }
 
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") goBack();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [accountDrawerOpen, uploadSheetOpen, notificationsOpen, chatsOpen, gazeLockEnabled, oneTapLockEnabled]);
+  return children;
+}
 
-  const pageProps = useMemo(() => ({
-    profile,
-    currentUser,
-    route,
-    navigate: pushHistory,
-    goBack,
-    setAccountDrawerOpen,
-    setUploadSheetOpen,
-    setNotificationsOpen,
-    setChatsOpen,
-    dataSaverEnabled,
-    setDataSaverEnabled,
-  }), [profile, currentUser, route, dataSaverEnabled]);
+function PublicOnlyRoute({ session, children }) {
+  if (session) {
+    return <Navigate to="/home" replace />;
+  }
+
+  return children;
+}
+
+function LockPage({ onUnlock }) {
+  const navigate = useNavigate();
+
+  const handleUnlock = () => {
+    localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
+    onUnlock();
+    navigate('/home', { replace: true });
+  };
 
   return (
-    <div className={`app-shell ${gazeLockEnabled ? "gaze-blur" : ""} ${oneTapLockEnabled ? "one-tap-blur" : ""}`}>
-      {route === "home" && <HomeFeed {...pageProps} />}
-      {route === "search" && <SearchPage {...pageProps} />}
-      {route === "reels" && <ReelsPage {...pageProps} />}
-      {route === "profile" && <ProfilePage {...pageProps} />}
-      {route === "notifications" && <NotificationsPage {...pageProps} />}
-      {route === "chats" && <ChatsPage {...pageProps} />}
-      {route === "chat" && <ChatScreen {...pageProps} />}
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '1rem',
+        background:
+          'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+        color: '#f4f7ff',
+      }}
+    >
+      <main
+        style={{
+          width: 'min(100%, 420px)',
+          padding: '1.5rem',
+          borderRadius: '1.5rem',
+          background: 'rgba(15,19,30,0.92)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          boxShadow: '0 24px 70px rgba(0,0,0,0.42)',
+          textAlign: 'center',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
+        <div
+          style={{
+            width: '4.5rem',
+            height: '4.5rem',
+            margin: '0 auto 1rem',
+            borderRadius: '999px',
+            display: 'grid',
+            placeItems: 'center',
+            background: 'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
+            color: '#fff',
+            boxShadow: '0 0 34px rgba(124,92,255,0.3)',
+          }}
+        >
+          <Lock size={28} />
+        </div>
 
-      <BottomNav
-        activeTab={route}
-        profile={profile}
-        navigate={pushHistory}
-        goBack={goBack}
-        onOpenGazeLock={() => setGazeLockEnabled(true)}
-        onOpenOneTapLock={() => setOneTapLockEnabled(true)}
-        onOpenNotifications={() => setNotificationsOpen(true)}
-        onOpenChats={() => setChatsOpen(true)}
-        onOpenAccountDrawer={() => setAccountDrawerOpen(true)}
-        onOpenUploadSheet={() => setUploadSheetOpen(true)}
-      />
+        <h1 style={{ margin: 0, fontSize: '1.25rem' }}>
+          Aarush is locked
+        </h1>
 
-      <GazeLockPanel
-        open={gazeLockEnabled}
-        onClose={() => setGazeLockEnabled(false)}
-        onToggle={() => setGazeLockEnabled((v) => !v)}
-      />
+        <p
+          style={{
+            margin: '0.6rem 0 1.25rem',
+            color: '#9aa7c1',
+            fontSize: '0.86rem',
+            lineHeight: 1.55,
+          }}
+        >
+          Unlock Aarush to continue to your protected session.
+        </p>
 
-      <OneTapLockPanel
-        open={oneTapLockEnabled}
-        onClose={() => setOneTapLockEnabled(false)}
-        onToggle={() => setOneTapLockEnabled((v) => !v)}
-      />
+        <button
+          type="button"
+          onClick={handleUnlock}
+          style={{
+            width: '100%',
+            border: 0,
+            borderRadius: '999px',
+            padding: '0.85rem 1rem',
+            background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+            color: '#fff',
+            fontSize: '0.86rem',
+            fontWeight: 850,
+            cursor: 'pointer',
+            boxShadow: '0 12px 26px rgba(124,92,255,0.2)',
+          }}
+        >
+          Unlock Aarush
+        </button>
+      </main>
+    </div>
+  );
+}
 
-      <AccountDrawer
-        open={accountDrawerOpen}
-        onClose={() => setAccountDrawerOpen(false)}
-        profile={profile}
-      />
+function AppRoutes({ session, locked, onUnlock }) {
+  const location = useLocation();
+  const navigate = useNavigate();
 
-      <UploadSheet
-        open={uploadSheetOpen}
-        onClose={() => setUploadSheetOpen(false)}
-        onSelect={(type) => {
-          setUploadSheetOpen(false);
-          if (type === "post") pushHistory("upload-post");
-          if (type === "story") pushHistory("upload-story");
-          if (type === "reel") pushHistory("upload-reel");
+  const isPublicRoute = publicRoutes.includes(location.pathname);
+  const isLockRoute = location.pathname === '/lock';
+  const gesturesEnabled = Boolean(session) && !locked && !isLockRoute;
+
+  if (session && locked && !isLockRoute) {
+    return <Navigate to="/lock" replace />;
+  }
+
+  if (!session && !isPublicRoute) {
+    return <Navigate to="/welcome" replace />;
+  }
+
+  return (
+    <>
+      {gesturesEnabled && location.pathname !== '/home' ? (
+        <GestureLayer
+          enabled
+          onLGesture={() => navigate('/account-switch')}
+        />
+      ) : null}
+
+      {gesturesEnabled ? (
+        <TwoFingerGestureLayer
+          enabled
+          onSwipe={() => navigate('/session-management')}
+        />
+      ) : null}
+
+      <Routes>
+        <Route
+          path="/"
+          element={
+            session ? (
+              locked ? (
+                <Navigate to="/lock" replace />
+              ) : (
+                <Navigate to="/home" replace />
+              )
+            ) : (
+              <Navigate to="/welcome" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/splash"
+          element={
+            <PublicOnlyRoute session={session}>
+              <Splash />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/welcome"
+          element={
+            <PublicOnlyRoute session={session}>
+              <Welcome />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute session={session}>
+              <Login />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/signup"
+          element={
+            <PublicOnlyRoute session={session}>
+              <Signup />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicOnlyRoute session={session}>
+              <ForgotPassword />
+            </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/home"
+          element={
+            <ProtectedRoute session={session}>
+              <HomeFeed />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reels"
+          element={
+            <ProtectedRoute session={session}>
+              <ReelsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute session={session}>
+              <SearchPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/upload"
+          element={
+            <ProtectedRoute session={session}>
+              <UploadPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute session={session}>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute session={session}>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/chats"
+          element={
+            <ProtectedRoute session={session}>
+              <ChatsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/privacy"
+          element={
+            <ProtectedRoute session={session}>
+              <PrivacyCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/privacy-center"
+          element={
+            <ProtectedRoute session={session}>
+              <PrivacyCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/lock"
+          element={
+            <ProtectedRoute session={session}>
+              <LockPage onUnlock={onUnlock} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/account-switch"
+          element={
+            <ProtectedRoute session={session}>
+              <AccountSwitchPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/session-management"
+          element={
+            <ProtectedRoute session={session}>
+              <LogoutSessionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={
+                session
+                  ? locked
+                    ? '/lock'
+                    : '/home'
+                  : '/welcome'
+              }
+              replace
+            />
+          }
+        />
+      </Routes>
+    </>
+  );
+}
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [locked, setLocked] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const restoreSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+
+        if (!mounted) {
+          return;
+        }
+
+        setSession(error ? null : data.session || null);
+        setLocked(localStorage.getItem(ONE_TAP_LOCK_KEY) === 'true');
+      } catch {
+        if (mounted) {
+          setSession(null);
+          setLocked(false);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    restoreSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) {
+        return;
+      }
+
+      setSession(nextSession || null);
+
+      if (!nextSession) {
+        setLocked(false);
+        localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!localStorage.getItem(GAZE_LOCK_KEY)) {
+      localStorage.setItem(GAZE_LOCK_KEY, 'true');
+    }
+
+    if (!localStorage.getItem(ONE_TAP_LOCK_KEY)) {
+      localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
+    }
+  }, []);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <BrowserRouter>
+      <AppRoutes
+        session={session}
+        locked={locked}
+        onUnlock={() => {
+          setLocked(false);
+          localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
         }}
       />
-    </div>
+    </BrowserRouter>
   );
 }

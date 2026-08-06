@@ -1,0 +1,21 @@
+.back-btn {
+  border: 0;
+  background: transparent;
+  color: #d7def7;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+
+.back-btn:hover {
+  color: #ffffff;
+}
+
+.back-arrow {
+  font-size: 18px;
+  line-height: 1;
+}
