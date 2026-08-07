@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -8,14 +8,14 @@ import {
   Menu,
   MessagesSquare,
   ShieldHalf,
-  ShieldOff,
   Video,
 } from 'lucide-react';
 
 const GAZE_LOCK_STORAGE_KEY = 'aarush_gaze_lock_enabled';
+const SECRET_ACCESS_INTERVAL = 300;
 
 export default function TopBar({
-  pageTitle = 'Home',
+  pageTitle = 'Aarush',
   notificationCount = 0,
   initialGazeLock = true,
   profileMode = false,
@@ -33,12 +33,16 @@ export default function TopBar({
   onNotificationsClick,
   onChatClick,
   onOneTapLock,
+  onSecretAccess,
 }) {
   const navigate = useNavigate();
+  const lastSecretTapRef = useRef(0);
   const [gazeLockEnabled, setGazeLockEnabled] = useState(initialGazeLock);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      return;
+    }
 
     const savedValue = window.localStorage.getItem(GAZE_LOCK_STORAGE_KEY);
 
@@ -52,7 +56,9 @@ export default function TopBar({
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      return;
+    }
 
     window.localStorage.setItem(
       GAZE_LOCK_STORAGE_KEY,
@@ -65,8 +71,29 @@ export default function TopBar({
       return username.startsWith('@') ? username : `@${username}`;
     }
 
-    return pageTitle || 'Home';
+    return pageTitle || 'Aarush';
   }, [pageTitle, profileMode, username]);
+
+  const handleSecretAccessPointerUp = () => {
+    if (typeof onSecretAccess !== 'function') {
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - lastSecretTapRef.current;
+
+    if (
+      lastSecretTapRef.current > 0 &&
+      elapsed > 0 &&
+      elapsed <= SECRET_ACCESS_INTERVAL
+    ) {
+      lastSecretTapRef.current = 0;
+      onSecretAccess();
+      return;
+    }
+
+    lastSecretTapRef.current = now;
+  };
 
   const toggleGazeLock = () => {
     setGazeLockEnabled((currentValue) => {
@@ -237,7 +264,9 @@ export default function TopBar({
               }}
             >
               <Clock3 size={15} />
-              <span className="aarush-profile-topbar-text">Time-Limited</span>
+              <span className="aarush-profile-topbar-text">
+                Time-Limited
+              </span>
             </button>
 
             <button
@@ -262,7 +291,9 @@ export default function TopBar({
             <button
               type="button"
               onClick={toggleGazeLock}
-              aria-label={`Gaze Lock ${gazeLockEnabled ? 'enabled' : 'disabled'}`}
+              aria-label={`Gaze Lock ${
+                gazeLockEnabled ? 'enabled' : 'disabled'
+              }`}
               aria-pressed={gazeLockEnabled}
               style={{
                 ...baseButtonStyle,
@@ -277,11 +308,11 @@ export default function TopBar({
               type="button"
               onClick={handleNotifications}
               aria-label={`Open notifications${
-                notificationCount > 0 ? `, ${notificationCount} unread` : ''
+                notificationCount > 0
+                  ? `, ${notificationCount} unread`
+                  : ''
               }`}
-              style={{
-                ...iconButtonStyle,
-              }}
+              style={iconButtonStyle}
             >
               <Bell size={17} />
 
@@ -314,6 +345,13 @@ export default function TopBar({
 
         <div
           title={title}
+          role={typeof onSecretAccess === 'function' ? 'button' : undefined}
+          aria-label={
+            typeof onSecretAccess === 'function'
+              ? 'Aarush title. Double tap or double click for secret access.'
+              : undefined
+          }
+          onPointerUp={handleSecretAccessPointerUp}
           style={{
             minWidth: 0,
             overflow: 'hidden',
@@ -324,6 +362,10 @@ export default function TopBar({
             fontSize: profileMode ? '0.98rem' : '1rem',
             fontWeight: 850,
             letterSpacing: profileMode ? '0.01em' : 0,
+            cursor:
+              typeof onSecretAccess === 'function' ? 'default' : 'inherit',
+            userSelect: 'none',
+            touchAction: 'manipulation',
           }}
         >
           {title}
@@ -366,7 +408,9 @@ export default function TopBar({
             aria-pressed={decoyVault}
             style={{
               ...iconButtonStyle,
-              ...(decoyVault ? { ...activeButtonStyle, ...dangerButtonStyle } : {}),
+              ...(decoyVault
+                ? { ...activeButtonStyle, ...dangerButtonStyle }
+                : {}),
             }}
           >
             <Lock size={16} />

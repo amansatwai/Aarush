@@ -4,7 +4,6 @@ import TopBar from '../components/TopBar';
 import Stories from '../components/Stories';
 import FeedPost from '../components/FeedPost';
 import BottomNav from '../components/BottomNav';
-import GestureLayer from '../components/GestureLayer';
 import {
   ChevronRight,
   Compass,
@@ -185,7 +184,8 @@ function FeedModeTab({ active, children, onClick }) {
         fontSize: '0.8rem',
         fontWeight: 800,
         cursor: 'pointer',
-        transition: 'transform 180ms ease, background 180ms ease, color 180ms ease',
+        transition:
+          'transform 180ms ease, background 180ms ease, color 180ms ease',
         whiteSpace: 'nowrap',
         flexShrink: 0,
       }}
@@ -491,12 +491,11 @@ export default function HomeFeed() {
 
   return (
     <div style={styles.page}>
-      <GestureLayer
-        enabled
-        onLGesture={() => navigate('/account-switch')}
+      <TopBar
+        pageTitle="Aarush"
+        notificationCount={3}
+        onSecretAccess={() => navigate('/account-switch')}
       />
-
-      <TopBar pageTitle="Home" notificationCount={3} />
 
       <main style={styles.main}>
         <Stories />

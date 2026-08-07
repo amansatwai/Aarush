@@ -3,48 +3,138 @@ import { useNavigate } from 'react-router-dom';
 import {
   Check,
   ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Fingerprint,
+  Laptop,
+  LogIn,
   Plus,
   ShieldCheck,
-  UserRound,
+  Smartphone,
+  Trash2,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 
-const loggedInAccounts = [
+const initialAccounts = [
   {
     id: 'account-1',
     username: '@arush.dev',
     displayName: 'Aarush Developer',
-    avatar: 'A',
-    active: true,
-    gradient: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    avatarUrl: 'https://i.pravatar.cc/160?img=12',
+    lastActive: 'Active now',
+    trustedDevice: true,
+    current: true,
+    device: 'This device',
   },
   {
     id: 'account-2',
     username: '@aman.satwai',
     displayName: 'Aman Satwai',
-    avatar: 'A',
-    active: false,
-    gradient: 'linear-gradient(135deg, #ff4fd8, #7c5cff)',
+    avatarUrl: 'https://i.pravatar.cc/160?img=11',
+    lastActive: 'Active 18 minutes ago',
+    trustedDevice: true,
+    current: false,
+    device: 'Windows laptop',
   },
   {
     id: 'account-3',
     username: '@creator.lab',
     displayName: 'Creator Lab',
-    avatar: 'C',
-    active: false,
-    gradient: 'linear-gradient(135deg, #ffb347, #ff4fd8)',
+    avatarUrl: 'https://i.pravatar.cc/160?img=32',
+    lastActive: 'Active yesterday',
+    trustedDevice: false,
+    current: false,
+    device: 'Android device',
   },
 ];
 
+function AccountAvatar({ account }) {
+  return (
+    <div
+      style={{
+        width: '3.5rem',
+        height: '3.5rem',
+        padding: '2px',
+        borderRadius: '999px',
+        background: account.current
+          ? 'linear-gradient(135deg, #7c5cff, #4dd7ff, #ff4fd8)'
+          : 'linear-gradient(135deg, rgba(124,92,255,0.65), rgba(77,215,255,0.45))',
+        boxShadow: account.current
+          ? '0 0 24px rgba(124,92,255,0.3)'
+          : '0 0 16px rgba(77,215,255,0.12)',
+        flexShrink: 0,
+      }}
+    >
+      <img
+        src={account.avatarUrl}
+        alt={`${account.displayName} profile`}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          objectFit: 'cover',
+          borderRadius: '999px',
+          background: '#1a2031',
+        }}
+      />
+    </div>
+  );
+}
+
+function DeviceIcon({ device }) {
+  if (device.toLowerCase().includes('android')) {
+    return <Smartphone size={13} />;
+  }
+
+  if (device.toLowerCase().includes('laptop')) {
+    return <Laptop size={13} />;
+  }
+
+  return <ShieldCheck size={13} />;
+}
+
 export default function AccountSwitchPage() {
   const navigate = useNavigate();
+  const [accounts, setAccounts] = useState(initialAccounts);
+  const [selectedAccountId, setSelectedAccountId] = useState('account-1');
   const [message, setMessage] = useState('');
 
-  const handleSwitch = (account) => {
-    setMessage(`Account switching for ${account.username} will be connected to authentication later.`);
+  const selectedAccount =
+    accounts.find((account) => account.id === selectedAccountId) ||
+    accounts[0];
+
+  const handleSwitchAccount = (account) => {
+    if (account.id === selectedAccountId) {
+      setMessage(`${account.username} is already the current account.`);
+      return;
+    }
+
+    setSelectedAccountId(account.id);
+    setMessage(
+      `Account switching for ${account.username} is ready for the secure authentication session integration.`
+    );
   };
 
-  const handleAddAccount = () => {
-    setMessage('Add another account will open the authentication flow later.');
+  const handleRemoveAccount = (account) => {
+    const confirmed = window.confirm(
+      `Remove ${account.username} from this device? This will not delete the Aarush account.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAccounts((currentAccounts) =>
+      currentAccounts.filter((item) => item.id !== account.id)
+    );
+
+    if (selectedAccountId === account.id) {
+      const fallbackAccount = accounts.find((item) => item.id !== account.id);
+      setSelectedAccountId(fallbackAccount?.id || '');
+    }
+
+    setMessage(`${account.username} was removed from this device.`);
   };
 
   const styles = {
@@ -54,12 +144,12 @@ export default function AccountSwitchPage() {
       flexDirection: 'column',
       padding: '1rem',
       background:
-        'radial-gradient(circle at top, rgba(34,43,68,0.5) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+        'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
       color: '#f4f7ff',
     },
     header: {
       width: '100%',
-      maxWidth: '520px',
+      maxWidth: '560px',
       margin: '0 auto',
       display: 'flex',
       alignItems: 'center',
@@ -69,41 +159,49 @@ export default function AccountSwitchPage() {
     backButton: {
       width: '2.75rem',
       height: '2.75rem',
+      display: 'grid',
+      placeItems: 'center',
       borderRadius: '999px',
       border: '1px solid rgba(255,255,255,0.08)',
       background: 'rgba(255,255,255,0.05)',
       color: '#fff',
-      display: 'grid',
-      placeItems: 'center',
       cursor: 'pointer',
       flexShrink: 0,
     },
+    headerLabel: {
+      color: '#aab6cf',
+      fontSize: '0.8rem',
+      fontWeight: 750,
+    },
     main: {
       width: '100%',
-      maxWidth: '520px',
+      maxWidth: '560px',
       margin: '0 auto',
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
-      padding: '2rem 0 1rem',
+      padding: '1.75rem 0 1rem',
     },
     hero: {
-      padding: '1.35rem',
+      padding: '1.4rem',
       borderRadius: '1.5rem',
+      textAlign: 'center',
       background:
         'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.1), rgba(255,79,216,0.08))',
       border: '1px solid rgba(124,92,255,0.22)',
-      boxShadow: '0 24px 70px rgba(0,0,0,0.32), 0 0 30px rgba(124,92,255,0.1)',
-      textAlign: 'center',
+      boxShadow:
+        '0 24px 70px rgba(0,0,0,0.32), 0 0 30px rgba(124,92,255,0.1)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
     },
-    shield: {
+    heroIcon: {
       width: '4.25rem',
       height: '4.25rem',
       margin: '0 auto',
-      borderRadius: '1.25rem',
       display: 'grid',
       placeItems: 'center',
+      borderRadius: '1.25rem',
       background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
       color: '#fff',
       boxShadow: '0 0 28px rgba(77,215,255,0.24)',
@@ -111,9 +209,9 @@ export default function AccountSwitchPage() {
     title: {
       margin: '1rem 0 0',
       color: '#f7f9ff',
-      fontSize: '1.45rem',
+      fontSize: '1.5rem',
       fontWeight: 900,
-      letterSpacing: '-0.02em',
+      letterSpacing: '-0.025em',
     },
     subtitle: {
       margin: '0.45rem 0 0',
@@ -121,12 +219,12 @@ export default function AccountSwitchPage() {
       fontSize: '0.86rem',
       lineHeight: 1.5,
     },
-    count: {
+    accountCount: {
       display: 'inline-flex',
       alignItems: 'center',
       gap: '0.35rem',
       marginTop: '0.8rem',
-      padding: '0.42rem 0.65rem',
+      padding: '0.42rem 0.7rem',
       borderRadius: '999px',
       background: 'rgba(255,255,255,0.08)',
       border: '1px solid rgba(255,255,255,0.1)',
@@ -134,50 +232,54 @@ export default function AccountSwitchPage() {
       fontSize: '0.74rem',
       fontWeight: 800,
     },
+    sectionHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '0.75rem',
+      margin: '1.1rem 0 0.65rem',
+    },
+    sectionTitle: {
+      margin: 0,
+      color: '#eef3ff',
+      fontSize: '0.86rem',
+      fontWeight: 850,
+    },
+    securityLabel: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+      color: '#82e9c1',
+      fontSize: '0.7rem',
+      fontWeight: 800,
+    },
     accountList: {
       display: 'grid',
       gap: '0.65rem',
-      marginTop: '1rem',
     },
     accountCard: (active) => ({
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.75rem',
-      padding: '0.85rem',
+      padding: '0.9rem',
       borderRadius: '1.2rem',
+      border: `1px solid ${
+        active ? 'rgba(124,92,255,0.34)' : 'rgba(255,255,255,0.08)'
+      }`,
       background: active
         ? 'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(77,215,255,0.08))'
         : 'rgba(15,19,30,0.9)',
-      border: `1px solid ${
-        active ? 'rgba(124,92,255,0.3)' : 'rgba(255,255,255,0.08)'
-      }`,
-      boxShadow: active ? '0 0 24px rgba(124,92,255,0.12)' : '0 14px 35px rgba(0,0,0,0.18)',
+      boxShadow: active
+        ? '0 0 24px rgba(124,92,255,0.12)'
+        : '0 14px 35px rgba(0,0,0,0.18)',
       backdropFilter: 'blur(14px)',
       WebkitBackdropFilter: 'blur(14px)',
     }),
-    avatarRing: (gradient) => ({
-      width: '3.2rem',
-      height: '3.2rem',
-      padding: '2.5px',
-      borderRadius: '999px',
-      background: gradient,
-      boxShadow: '0 0 16px rgba(124,92,255,0.18)',
-      flexShrink: 0,
-    }),
-    avatar: {
-      width: '100%',
-      height: '100%',
-      borderRadius: '999px',
-      display: 'grid',
-      placeItems: 'center',
-      background: 'linear-gradient(135deg, #151a28, #252d48)',
-      color: '#fff',
-      fontSize: '1rem',
-      fontWeight: 900,
+    accountTop: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
     },
     accountInfo: {
-      flex: 1,
       minWidth: 0,
+      flex: 1,
     },
     username: {
       display: 'flex',
@@ -201,25 +303,63 @@ export default function AccountSwitchPage() {
       alignItems: 'center',
       gap: '0.25rem',
       marginTop: '0.35rem',
-      padding: '0.28rem 0.45rem',
+      padding: '0.28rem 0.48rem',
       borderRadius: '999px',
       background: 'rgba(82,232,170,0.12)',
       border: '1px solid rgba(82,232,170,0.18)',
       color: '#d7ffef',
-      fontSize: '0.64rem',
+      fontSize: '0.63rem',
       fontWeight: 850,
     },
+    accountMeta: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: '0.5rem',
+      marginTop: '0.75rem',
+      paddingTop: '0.7rem',
+      borderTop: '1px solid rgba(255,255,255,0.07)',
+      color: '#8997b3',
+      fontSize: '0.68rem',
+    },
+    metaItem: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.25rem',
+    },
+    trusted: {
+      color: '#83e9c1',
+    },
+    untrusted: {
+      color: '#ffcf8a',
+    },
+    cardActions: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.45rem',
+      marginTop: '0.75rem',
+    },
     switchButton: {
-      border: '1px solid rgba(255,255,255,0.09)',
+      flex: 1,
+      minHeight: '2.55rem',
+      border: 0,
       borderRadius: '999px',
-      padding: '0.58rem 0.75rem',
-      background: 'rgba(255,255,255,0.06)',
-      color: '#eaf0ff',
-      fontSize: '0.74rem',
+      background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+      color: '#fff',
+      fontSize: '0.76rem',
       fontWeight: 850,
       cursor: 'pointer',
-      whiteSpace: 'nowrap',
-      flexShrink: 0,
+    },
+    removeButton: {
+      width: '2.55rem',
+      height: '2.55rem',
+      display: 'grid',
+      placeItems: 'center',
+      borderRadius: '999px',
+      border: '1px solid rgba(255,79,122,0.2)',
+      background: 'rgba(255,79,122,0.08)',
+      color: '#ffadc5',
+      cursor: 'pointer',
     },
     actions: {
       display: 'grid',
@@ -244,7 +384,7 @@ export default function AccountSwitchPage() {
     },
     secondaryButton: {
       width: '100%',
-      minHeight: '2.9rem',
+      minHeight: '2.85rem',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -279,15 +419,25 @@ export default function AccountSwitchPage() {
       lineHeight: 1.45,
       textAlign: 'center',
     },
+    emptyState: {
+      padding: '1rem',
+      borderRadius: '1rem',
+      background: 'rgba(255,255,255,0.04)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      color: '#96a3bf',
+      fontSize: '0.8rem',
+      lineHeight: 1.5,
+      textAlign: 'center',
+    },
     footer: {
       width: '100%',
-      maxWidth: '520px',
+      maxWidth: '560px',
       margin: '0 auto',
       paddingBottom: 'env(safe-area-inset-bottom)',
-      textAlign: 'center',
       color: '#74819c',
       fontSize: '0.7rem',
       lineHeight: 1.45,
+      textAlign: 'center',
     },
   };
 
@@ -297,93 +447,170 @@ export default function AccountSwitchPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          style={styles.backButton}
           aria-label="Go back"
+          style={styles.backButton}
         >
           <ChevronLeft size={18} />
         </button>
 
-        <span style={{ color: '#aab6cf', fontSize: '0.8rem', fontWeight: 750 }}>
-          Account switch
-        </span>
+        <span style={styles.headerLabel}>Secure account access</span>
       </header>
 
       <main style={styles.main}>
         <section style={styles.hero}>
-          <div style={styles.shield}>
+          <div style={styles.heroIcon}>
             <ShieldCheck size={31} />
           </div>
 
-          <h1 style={styles.title}>Switch account</h1>
+          <h1 style={styles.title}>Switch Account</h1>
 
           <p style={styles.subtitle}>
-            Accounts currently signed in on this device
+            Secure account access for this device
           </p>
 
-          <span style={styles.count}>
-            <UserRound size={13} />
-            Logged in accounts: {loggedInAccounts.length}
+          <span style={styles.accountCount}>
+            <Users size={13} />
+            {accounts.length} account{accounts.length === 1 ? '' : 's'} available
           </span>
         </section>
 
-        <section style={styles.accountList}>
-          {loggedInAccounts.map((account) => (
-            <article key={account.id} style={styles.accountCard(account.active)}>
-              <div style={styles.avatarRing(account.gradient)}>
-                <div style={styles.avatar}>{account.avatar}</div>
-              </div>
+        <div style={styles.sectionHeader}>
+          <h2 style={styles.sectionTitle}>Available accounts</h2>
 
-              <div style={styles.accountInfo}>
-                <div style={styles.username}>
-                  {account.username}
-                  {account.active ? <Check size={14} color="#72f0bd" /> : null}
-                </div>
+          <span style={styles.securityLabel}>
+            <Fingerprint size={13} />
+            Protected
+          </span>
+        </div>
 
-                <span style={styles.displayName}>{account.displayName}</span>
+        <section style={styles.accountList} aria-label="Available accounts">
+          {accounts.length > 0 ? (
+            accounts.map((account) => {
+              const isSelected = account.id === selectedAccountId;
 
-                {account.active ? (
-                  <span style={styles.activeBadge}>
-                    <Check size={11} />
-                    Current account
-                  </span>
-                ) : null}
-              </div>
+              return (
+                <article
+                  key={account.id}
+                  style={styles.accountCard(isSelected)}
+                >
+                  <div style={styles.accountTop}>
+                    <AccountAvatar account={account} />
 
-              <button
-                type="button"
-                onClick={() => handleSwitch(account)}
-                style={{
-                  ...styles.switchButton,
-                  opacity: account.active ? 0.58 : 1,
-                  cursor: account.active ? 'default' : 'pointer',
-                }}
-                disabled={account.active}
-              >
-                {account.active ? 'Active' : 'Switch'}
-              </button>
-            </article>
-          ))}
+                    <div style={styles.accountInfo}>
+                      <div style={styles.username}>
+                        {account.username}
+                        {account.current ? (
+                          <Check size={14} color="#75efbd" />
+                        ) : null}
+                      </div>
+
+                      <span style={styles.displayName}>
+                        {account.displayName}
+                      </span>
+
+                      {isSelected ? (
+                        <span style={styles.activeBadge}>
+                          <Check size={11} />
+                          {account.current
+                            ? 'Current account'
+                            : 'Selected account'}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div style={styles.accountMeta}>
+                    <span style={styles.metaItem}>
+                      <Clock3 size={13} />
+                      {account.lastActive}
+                    </span>
+
+                    <span style={styles.metaItem}>
+                      <DeviceIcon device={account.device} />
+                      {account.device}
+                    </span>
+
+                    <span
+                      style={{
+                        ...styles.metaItem,
+                        ...(account.trustedDevice
+                          ? styles.trusted
+                          : styles.untrusted),
+                      }}
+                    >
+                      <ShieldCheck size={13} />
+                      {account.trustedDevice
+                        ? 'Trusted device'
+                        : 'Verification required'}
+                    </span>
+                  </div>
+
+                  <div style={styles.cardActions}>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchAccount(account)}
+                      style={{
+                        ...styles.switchButton,
+                        opacity: isSelected ? 0.62 : 1,
+                        cursor: isSelected ? 'default' : 'pointer',
+                      }}
+                      disabled={isSelected}
+                    >
+                      {isSelected ? 'Selected' : 'Switch account'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAccount(account)}
+                      aria-label={`Remove ${account.username} from this device`}
+                      style={styles.removeButton}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <div style={styles.emptyState}>
+              No additional accounts are currently available on this device.
+            </div>
+          )}
         </section>
+
+        {message ? (
+          <div role="status" style={styles.message}>
+            {message}
+          </div>
+        ) : null}
 
         <section style={styles.actions}>
           <button
             type="button"
-            onClick={handleAddAccount}
+            onClick={() => navigate('/login')}
             style={styles.primaryButton}
           >
             <Plus size={17} />
-            Add another account
+            Add Another Account
           </button>
 
           <button
             type="button"
-            onClick={handleAddAccount}
+            onClick={() => navigate('/signup')}
             style={styles.secondaryButton}
           >
-            Continue with another account
+            <UserPlus size={16} />
+            Create New Account
           </button>
 
-          {message ? <div style={styles.message}>{message}</div> : null}
+          <button
+            type="button"
+            onClick={() => navigate('/session-management')}
+            style={styles.secondaryButton}
+          >
+            <LogIn size={16} />
+            Manage Sessions
+          </button>
 
           <button
             type="button"
@@ -396,13 +623,14 @@ export default function AccountSwitchPage() {
       </main>
 
       <footer style={styles.footer}>
-        Account switching is protected by your Aarush device session.
+        Future biometric, PIN, and face verification can be connected through
+        the existing security session layer.
       </footer>
 
       <style>{`
         button {
-          transition: transform 180ms ease, filter 180ms ease, background 180ms ease;
           -webkit-tap-highlight-color: transparent;
+          transition: transform 180ms ease, filter 180ms ease, background 180ms ease;
         }
 
         button:not(:disabled):hover {
@@ -412,12 +640,6 @@ export default function AccountSwitchPage() {
 
         button:not(:disabled):active {
           transform: scale(0.98);
-        }
-
-        @media (max-width: 420px) {
-          main {
-            padding-top: 1.25rem;
-          }
         }
       `}</style>
     </div>

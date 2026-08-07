@@ -7,7 +7,7 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
-import { ShieldCheck, Lock } from 'lucide-react';
+import { Lock, ShieldCheck } from 'lucide-react';
 
 import Splash from './pages/Splash';
 import Welcome from './pages/Welcome';
@@ -24,7 +24,6 @@ import ChatsPage from './pages/ChatsPage';
 import PrivacyCenter from './pages/PrivacyCenter';
 import AccountSwitchPage from './pages/AccountSwitchPage';
 import LogoutSessionPage from './pages/LogoutSessionPage';
-import GestureLayer from './components/GestureLayer';
 import TwoFingerGestureLayer from './components/TwoFingerGestureLayer';
 import { supabase } from './lib/supabase';
 import './App.css';
@@ -238,13 +237,6 @@ function AppRoutes({ session, locked, onUnlock }) {
 
   return (
     <>
-      {gesturesEnabled && location.pathname !== '/home' ? (
-        <GestureLayer
-          enabled
-          onLGesture={() => navigate('/account-switch')}
-        />
-      ) : null}
-
       {gesturesEnabled ? (
         <TwoFingerGestureLayer
           enabled

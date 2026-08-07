@@ -1,60 +1,16 @@
-import { useEffect } from 'react';
-import useLGesture from '../hooks/useLGesture';
-
-export default function GestureLayer({ enabled = true, onLGesture }) {
-  const gestureHandlers = useLGesture({
-    enabled,
-    onGestureDetected: onLGesture,
-  });
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-
-    const handlePointerDown = (event) => {
-      gestureHandlers.onPointerDown(event);
-    };
-
-    const handlePointerMove = (event) => {
-      gestureHandlers.onPointerMove(event);
-    };
-
-    const handlePointerUp = (event) => {
-      gestureHandlers.onPointerUp(event);
-    };
-
-    const handlePointerCancel = (event) => {
-      gestureHandlers.onPointerCancel(event);
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown, {
-      passive: true,
-      capture: true,
-    });
-
-    window.addEventListener('pointermove', handlePointerMove, {
-      passive: true,
-      capture: true,
-    });
-
-    window.addEventListener('pointerup', handlePointerUp, {
-      passive: true,
-      capture: true,
-    });
-
-    window.addEventListener('pointercancel', handlePointerCancel, {
-      passive: true,
-      capture: true,
-    });
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true);
-      window.removeEventListener('pointermove', handlePointerMove, true);
-      window.removeEventListener('pointerup', handlePointerUp, true);
-      window.removeEventListener('pointercancel', handlePointerCancel, true);
-
-      gestureHandlers.reset();
-    };
-  }, [enabled, gestureHandlers]);
-
+/**
+ * Compatibility placeholder for the retired L-gesture system.
+ *
+ * This component intentionally:
+ * - Registers no browser event listeners.
+ * - Performs no gesture detection.
+ * - Does not navigate.
+ * - Does not prevent or modify user interaction.
+ * - Renders no UI.
+ *
+ * It remains available temporarily so any stale imports do not break
+ * the application while the old feature is fully removed.
+ */
+export default function GestureLayer() {
   return null;
 }
