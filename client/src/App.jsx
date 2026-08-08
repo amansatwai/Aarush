@@ -4,8 +4,6 @@ import {
   Navigate,
   Route,
   Routes,
-  useLocation,
-  useNavigate,
 } from 'react-router-dom';
 import { Lock, ShieldCheck } from 'lucide-react';
 
@@ -14,30 +12,52 @@ import Welcome from './pages/Welcome';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
+
 import HomeFeed from './pages/HomeFeed';
 import ReelsPage from './pages/ReelsPage';
 import SearchPage from './pages/SearchPage';
 import UploadPage from './pages/UploadPage';
+
 import ProfilePage from './pages/ProfilePage';
+import ProfileSettings from './pages/ProfileSettings';
+import AccessibilitySettings from './pages/AccessibilitySettings';
+import LanguageSettings from './pages/LanguageSettings';
+import CreatorAnalytics from './pages/CreatorAnalytics';
+
 import NotificationsPage from './pages/NotificationsPage';
+import NotificationCenter from './pages/NotificationCenter';
+import NotificationPrivacy from './pages/NotificationPrivacy';
+
 import ChatsPage from './pages/ChatsPage';
+import ChatConversation from './pages/ChatConversation';
+
 import PrivacyCenter from './pages/PrivacyCenter';
+import PrivacyDashboard from './pages/PrivacyDashboard';
+import PrivacyInnovations from './pages/PrivacyInnovations';
+import EmergencyPrivacy from './pages/EmergencyPrivacy';
+import ShoulderSurf from './pages/ShoulderSurf';
+import StealthPrivacy from './pages/StealthPrivacy';
+import PrivateSafeSettings from './pages/PrivateSafeSettings';
+
+import SecurityCenter from './pages/SecurityCenter';
+import AarushAISecurity from './pages/AarushAISecurity';
+import AppLockSettings from './pages/AppLockSettings';
+import CallPrivacyCenter from './pages/CallPrivacyCenter';
+
+import MemoriesVault from './pages/MemoriesVault';
+
+import MonetizationCenter from './pages/MonetizationCenter';
+import PricingPlans from './pages/PricingPlans';
+import PayoutSettings from './pages/PayoutSettings';
+
 import AccountSwitchPage from './pages/AccountSwitchPage';
 import LogoutSessionPage from './pages/LogoutSessionPage';
-import TwoFingerGestureLayer from './components/TwoFingerGestureLayer';
+
 import { supabase } from './lib/supabase';
 import './App.css';
 
 const ONE_TAP_LOCK_KEY = 'aarush_one_tap_lock_enabled';
 const GAZE_LOCK_KEY = 'aarush_gaze_lock_enabled';
-
-const publicRoutes = [
-  '/welcome',
-  '/login',
-  '/signup',
-  '/forgot-password',
-  '/splash',
-];
 
 function LoadingScreen() {
   return (
@@ -115,9 +135,18 @@ function LoadingScreen() {
   );
 }
 
-function ProtectedRoute({ session, children }) {
+function ProtectedRoute({
+  session,
+  locked,
+  children,
+  allowWhileLocked = false,
+}) {
   if (!session) {
     return <Navigate to="/welcome" replace />;
+  }
+
+  if (locked && !allowWhileLocked) {
+    return <Navigate to="/lock" replace />;
   }
 
   return children;
@@ -132,12 +161,9 @@ function PublicOnlyRoute({ session, children }) {
 }
 
 function LockPage({ onUnlock }) {
-  const navigate = useNavigate();
-
   const handleUnlock = () => {
     localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
     onUnlock();
-    navigate('/home', { replace: true });
   };
 
   return (
@@ -173,7 +199,8 @@ function LockPage({ onUnlock }) {
             borderRadius: '999px',
             display: 'grid',
             placeItems: 'center',
-            background: 'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
+            background:
+              'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
             color: '#fff',
             boxShadow: '0 0 34px rgba(124,92,255,0.3)',
           }}
@@ -219,217 +246,647 @@ function LockPage({ onUnlock }) {
   );
 }
 
-function AppRoutes({ session, locked, onUnlock }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const isPublicRoute = publicRoutes.includes(location.pathname);
-  const isLockRoute = location.pathname === '/lock';
-  const gesturesEnabled = Boolean(session) && !locked && !isLockRoute;
-
-  if (session && locked && !isLockRoute) {
-    return <Navigate to="/lock" replace />;
-  }
-
-  if (!session && !isPublicRoute) {
-    return <Navigate to="/welcome" replace />;
-  }
-
+function RouteElement({
+  session,
+  locked,
+  component,
+  allowWhileLocked = false,
+}) {
   return (
-    <>
-      {gesturesEnabled ? (
-        <TwoFingerGestureLayer
-          enabled
-          onSwipe={() => navigate('/session-management')}
-        />
-      ) : null}
+    <ProtectedRoute
+      session={session}
+      locked={locked}
+      allowWhileLocked={allowWhileLocked}
+    >
+      {component}
+    </ProtectedRoute>
+  );
+}
 
-      <Routes>
-        <Route
-          path="/"
-          element={
-            session ? (
-              locked ? (
-                <Navigate to="/lock" replace />
-              ) : (
-                <Navigate to="/home" replace />
-              )
+function AppRoutes({ session, locked, onUnlock }) {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          session ? (
+            locked ? (
+              <Navigate to="/lock" replace />
             ) : (
-              <Navigate to="/welcome" replace />
+              <Navigate to="/home" replace />
             )
-          }
-        />
+          ) : (
+            <Navigate to="/welcome" replace />
+          )
+        }
+      />
 
-        <Route
-          path="/splash"
-          element={
-            <PublicOnlyRoute session={session}>
-              <Splash />
-            </PublicOnlyRoute>
-          }
-        />
+      <Route
+        path="/splash"
+        element={
+          <PublicOnlyRoute session={session}>
+            <Splash />
+          </PublicOnlyRoute>
+        }
+      />
 
-        <Route
-          path="/welcome"
-          element={
-            <PublicOnlyRoute session={session}>
-              <Welcome />
-            </PublicOnlyRoute>
-          }
-        />
+      <Route
+        path="/welcome"
+        element={
+          <PublicOnlyRoute session={session}>
+            <Welcome />
+          </PublicOnlyRoute>
+        }
+      />
 
-        <Route
-          path="/login"
-          element={
-            <PublicOnlyRoute session={session}>
-              <Login />
-            </PublicOnlyRoute>
-          }
-        />
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute session={session}>
+            <Login />
+          </PublicOnlyRoute>
+        }
+      />
 
-        <Route
-          path="/signup"
-          element={
-            <PublicOnlyRoute session={session}>
-              <Signup />
-            </PublicOnlyRoute>
-          }
-        />
+      <Route
+        path="/signup"
+        element={
+          <PublicOnlyRoute session={session}>
+            <Signup />
+          </PublicOnlyRoute>
+        }
+      />
 
-        <Route
-          path="/forgot-password"
-          element={
-            <PublicOnlyRoute session={session}>
-              <ForgotPassword />
-            </PublicOnlyRoute>
-          }
-        />
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicOnlyRoute session={session}>
+            <ForgotPassword />
+          </PublicOnlyRoute>
+        }
+      />
 
-        <Route
-          path="/home"
-          element={
-            <ProtectedRoute session={session}>
-              <HomeFeed />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/home"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<HomeFeed />}
+          />
+        }
+      />
 
-        <Route
-          path="/reels"
-          element={
-            <ProtectedRoute session={session}>
-              <ReelsPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/reels"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ReelsPage />}
+          />
+        }
+      />
 
-        <Route
-          path="/search"
-          element={
-            <ProtectedRoute session={session}>
-              <SearchPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/search"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SearchPage />}
+          />
+        }
+      />
 
-        <Route
-          path="/upload"
-          element={
-            <ProtectedRoute session={session}>
-              <UploadPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/upload"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<UploadPage />}
+          />
+        }
+      />
 
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute session={session}>
-              <ProfilePage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/profile"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ProfilePage />}
+          />
+        }
+      />
 
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute session={session}>
-              <NotificationsPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/profile-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ProfileSettings />}
+          />
+        }
+      />
 
-        <Route
-          path="/chats"
-          element={
-            <ProtectedRoute session={session}>
-              <ChatsPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/profile/time-limited"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ProfileSettings />}
+          />
+        }
+      />
 
-        <Route
-          path="/privacy"
-          element={
-            <ProtectedRoute session={session}>
-              <PrivacyCenter />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/time-limited-profile"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ProfileSettings />}
+          />
+        }
+      />
 
-        <Route
-          path="/privacy-center"
-          element={
-            <ProtectedRoute session={session}>
-              <PrivacyCenter />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/profile/screen-recording"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SecurityCenter />}
+          />
+        }
+      />
 
-        <Route
-          path="/lock"
-          element={
-            <ProtectedRoute session={session}>
-              <LockPage onUnlock={onUnlock} />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/screen-recording"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SecurityCenter />}
+          />
+        }
+      />
 
-        <Route
-          path="/account-switch"
-          element={
-            <ProtectedRoute session={session}>
-              <AccountSwitchPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/profile/screenshot-shield"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SecurityCenter />}
+          />
+        }
+      />
 
-        <Route
-          path="/session-management"
-          element={
-            <ProtectedRoute session={session}>
-              <LogoutSessionPage />
-            </ProtectedRoute>
-          }
-        />
+      <Route
+        path="/screenshot-shield"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SecurityCenter />}
+          />
+        }
+      />
 
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to={
-                session
-                  ? locked
-                    ? '/lock'
-                    : '/home'
-                  : '/welcome'
-              }
-              replace
-            />
-          }
-        />
-      </Routes>
-    </>
+      <Route
+        path="/profile/decoy-vault"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivateSafeSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/decoy-vault"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivateSafeSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/creator-analytics"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<CreatorAnalytics />}
+          />
+        }
+      />
+
+      <Route
+        path="/accessibility-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AccessibilitySettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/accessibility"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AccessibilitySettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/language-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<LanguageSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/language"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<LanguageSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/notifications"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<NotificationsPage />}
+          />
+        }
+      />
+
+      <Route
+        path="/notification-center"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<NotificationCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/notification-privacy"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<NotificationPrivacy />}
+          />
+        }
+      />
+
+      <Route
+        path="/notification-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<NotificationPrivacy />}
+          />
+        }
+      />
+
+      <Route
+        path="/chats"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ChatsPage />}
+          />
+        }
+      />
+
+      <Route
+        path="/chats/:chatId"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ChatConversation />}
+          />
+        }
+      />
+
+      <Route
+        path="/privacy"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivacyCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/privacy-center"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivacyCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/privacy-dashboard"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivacyDashboard />}
+          />
+        }
+      />
+
+      <Route
+        path="/privacy-innovations"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivacyInnovations />}
+          />
+        }
+      />
+
+      <Route
+        path="/emergency-privacy"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<EmergencyPrivacy />}
+          />
+        }
+      />
+
+      <Route
+        path="/shoulder-surf"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<ShoulderSurf />}
+          />
+        }
+      />
+
+      <Route
+        path="/stealth-privacy"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<StealthPrivacy />}
+          />
+        }
+      />
+
+      <Route
+        path="/private-safe-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PrivateSafeSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/security-center"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SecurityCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/security-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<SecurityCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/app-lock-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AppLockSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/app-lock"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AppLockSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/call-privacy-center"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<CallPrivacyCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/call-privacy"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<CallPrivacyCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/aarush-ai-security"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AarushAISecurity />}
+          />
+        }
+      />
+
+      <Route
+        path="/aarush-ai"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AarushAISecurity />}
+          />
+        }
+      />
+
+      <Route
+        path="/memories-vault"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<MemoriesVault />}
+          />
+        }
+      />
+
+      <Route
+        path="/vault"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<MemoriesVault />}
+          />
+        }
+      />
+
+      <Route
+        path="/monetization-center"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<MonetizationCenter />}
+          />
+        }
+      />
+
+      <Route
+        path="/pricing-plans"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PricingPlans />}
+          />
+        }
+      />
+
+      <Route
+        path="/payout-settings"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<PayoutSettings />}
+          />
+        }
+      />
+
+      <Route
+        path="/account-switch"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<AccountSwitchPage />}
+          />
+        }
+      />
+
+      <Route
+        path="/session-management"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<LogoutSessionPage />}
+          />
+        }
+      />
+
+      <Route
+        path="/logout"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            component={<LogoutSessionPage />}
+          />
+        }
+      />
+
+      <Route
+        path="/lock"
+        element={
+          <RouteElement
+            session={session}
+            locked={locked}
+            allowWhileLocked
+            component={<LockPage onUnlock={onUnlock} />}
+          />
+        }
+      />
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={session ? (locked ? '/lock' : '/home') : '/welcome'}
+            replace
+          />
+        }
+      />
+    </Routes>
   );
 }
 
@@ -443,14 +900,17 @@ export default function App() {
 
     const restoreSession = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error } =
+          await supabase.auth.getSession();
 
         if (!mounted) {
           return;
         }
 
         setSession(error ? null : data.session || null);
-        setLocked(localStorage.getItem(ONE_TAP_LOCK_KEY) === 'true');
+        setLocked(
+          localStorage.getItem(ONE_TAP_LOCK_KEY) === 'true'
+        );
       } catch {
         if (mounted) {
           setSession(null);
@@ -467,18 +927,23 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) {
-        return;
-      }
+    } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        if (!mounted) {
+          return;
+        }
 
-      setSession(nextSession || null);
+        setSession(nextSession || null);
 
-      if (!nextSession) {
-        setLocked(false);
-        localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
+        if (!nextSession) {
+          setLocked(false);
+          localStorage.setItem(
+            ONE_TAP_LOCK_KEY,
+            'false'
+          );
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -507,7 +972,10 @@ export default function App() {
         locked={locked}
         onUnlock={() => {
           setLocked(false);
-          localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
+          localStorage.setItem(
+            ONE_TAP_LOCK_KEY,
+            'false'
+          );
         }}
       />
     </BrowserRouter>

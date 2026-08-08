@@ -607,6 +607,7 @@ select:focus-visible,
   -webkit-line-clamp: 3;
 }
 
+
 .radius-xs {
   border-radius: var(--aarush-radius-xs);
 }

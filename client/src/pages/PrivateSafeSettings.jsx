@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Backup,
   Check,
   ChevronLeft,
   Cloud,
+  Database,
   Download,
   KeyRound,
   Lock,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
+
 import TopBar from '../components/TopBar';
 import BottomNav from '../components/BottomNav';
 import useMemoriesVault from '../hooks/useMemoriesVault';
@@ -105,8 +106,8 @@ export default function PrivateSafeSettings() {
               lineHeight: 1.5,
             }}
           >
-            Configure encrypted storage, expiry, backup, recovery, and secure
-            deletion preferences.
+            Configure encrypted storage, expiry, backup, recovery,
+            and secure deletion preferences.
           </p>
         </section>
 
@@ -131,8 +132,8 @@ export default function PrivateSafeSettings() {
               lineHeight: 1.45,
             }}
           >
-            Expired content can move to secure trash or be permanently deleted
-            after confirmation.
+            Expired content can move to secure trash or be permanently
+            deleted after confirmation.
           </p>
 
           <select
@@ -164,8 +165,14 @@ export default function PrivateSafeSettings() {
           >
             {[
               ['Expire automatically', true],
-              ['Move to secure trash', state.expiryBehavior === 'Move to secure trash'],
-              ['Permanently delete', state.expiryBehavior === 'Permanently delete'],
+              [
+                'Move to secure trash',
+                state.expiryBehavior === 'Move to secure trash',
+              ],
+              [
+                'Permanently delete',
+                state.expiryBehavior === 'Permanently delete',
+              ],
               ['Require confirmation', state.requireConfirmation],
               ['AI reminder before deletion', state.aiReminder],
             ].map(([label, checked]) => (
@@ -184,9 +191,15 @@ export default function PrivateSafeSettings() {
                   checked={Boolean(checked)}
                   onChange={() =>
                     label === 'Require confirmation'
-                      ? update({ requireConfirmation: !state.requireConfirmation })
-                      : label === 'AI reminder before deletion'
-                        ? update({ aiReminder: !state.aiReminder })
+                      ? update({
+                          requireConfirmation:
+                            !state.requireConfirmation,
+                        })
+                      : label ===
+                          'AI reminder before deletion'
+                        ? update({
+                            aiReminder: !state.aiReminder,
+                          })
                         : null
                   }
                   readOnly={
@@ -222,17 +235,21 @@ export default function PrivateSafeSettings() {
           >
             {[
               ['Encrypted Cloud Backup', Cloud],
-              ['Local Encrypted Backup', Backup],
+              ['Local Encrypted Backup', Database],
               ['External Drive Backup', Download],
               ['Backup Verification', ShieldCheck],
               ['Recovery Key', KeyRound],
               ['Emergency Recovery Contact', Shield],
-              ['Backup Schedule', Backup],
+              ['Backup Schedule', Database],
             ].map(([title, Icon]) => (
               <button
                 key={title}
                 type="button"
-                onClick={() => showMessage(`${title} is ready for secure vault integration.`)}
+                onClick={() =>
+                  showMessage(
+                    `${title} is ready for secure vault integration.`
+                  )
+                }
                 style={{
                   minHeight: '2.7rem',
                   display: 'flex',
@@ -257,7 +274,9 @@ export default function PrivateSafeSettings() {
           <input
             type="password"
             value={backupPassword}
-            onChange={(event) => setBackupPassword(event.target.value)}
+            onChange={(event) =>
+              setBackupPassword(event.target.value)
+            }
             placeholder="Set backup password"
             style={{
               width: '100%',
@@ -294,14 +313,19 @@ export default function PrivateSafeSettings() {
               lineHeight: 1.45,
             }}
           >
-            Future secure deletion will coordinate metadata removal, thumbnail
-            cleanup, cache cleanup, backup cleanup, clipboard cleanup, recovery
-            prevention, and secure wipe operations.
+            Future secure deletion will coordinate metadata removal,
+            thumbnail cleanup, cache cleanup, backup cleanup,
+            clipboard cleanup, recovery prevention, and secure wipe
+            operations.
           </p>
 
           <button
             type="button"
-            onClick={() => showMessage('Secure deletion controls are ready for encrypted-storage integration.')}
+            onClick={() =>
+              showMessage(
+                'Secure deletion controls are ready for encrypted-storage integration.'
+              )
+            }
             style={{
               width: '100%',
               minHeight: '2.7rem',
@@ -335,6 +359,17 @@ export default function PrivateSafeSettings() {
         button:not(:disabled):hover {
           transform: translateY(-1px);
           filter: brightness(1.08);
+        }
+
+        button:not(:disabled):active {
+          transform: scale(0.98);
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible {
+          outline: 2px solid #4dd7ff;
+          outline-offset: 2px;
         }
       `}</style>
     </div>

@@ -1,1301 +1,2227 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   Archive,
-  Ban,
-  Camera,
-  Check,
+  ArrowLeft,
+  Bot,
   CheckCheck,
-  ChevronRight,
+  ChevronDown,
   Clock3,
-  Copy,
   Edit3,
+  EyeOff,
   FileText,
-  Flag,
-  Forward,
+  FolderLock,
+  Heart,
+  History,
   Image as ImageIcon,
-  Link2,
-  LockKeyhole,
-  MailPlus,
-  Mic,
-  MicOff,
-  MoreHorizontal,
+  Lock,
+  Mail,
   MessageCircle,
-  MessagesSquare,
-  Phone,
+  MessageSquarePlus,
+  Mic,
+  MoreHorizontal,
   Pin,
-  Reply,
+  Plus,
   Search,
   Send,
   Settings2,
   Shield,
-  Smile,
-  Speaker,
-  SquareSlash,
-  Star,
-  Sticker,
-  Trash2,
-  Video,
-  Volume2,
-  VolumeX,
-  Wifi,
-  X,
-  Users,
   Sparkles,
-  Bot,
-  Eye,
-  EyeOff,
-  EllipsisVertical,
+  Star,
+  Trash2,
+  UserPlus,
+  Users,
+  VolumeX,
+  Wand2,
+  X,
 } from 'lucide-react';
 
-const chatUsers = [
+import TopBar from '../components/TopBar';
+import BottomNav from '../components/BottomNav';
+
+const STORAGE_KEY = 'aarush_chat_list_v2';
+const SEARCH_HISTORY_KEY = 'aarush_chat_search_history_v2';
+const SAVED_SEARCHES_KEY = 'aarush_chat_saved_searches_v2';
+
+const CHAT_TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'groups', label: 'Groups' },
+  { key: 'archived', label: 'Archived' },
+  { key: 'requests', label: 'Requests' },
+  { key: 'favorites', label: 'Favorites' },
+  { key: 'ai', label: 'AI' },
+  { key: 'hidden', label: 'Hidden' },
+];
+
+const CHAT_CATEGORIES = [
+  'Friends',
+  'Family',
+  'Work',
+  'Creators',
+  'Business',
+  'AI',
+  'Groups',
+  'Favorites',
+  'Hidden',
+];
+
+const FUTURE_LAB = [
+  'End-to-End Encryption',
+  'Secret Chats',
+  'Multi-Device Encryption',
+  'AI Live Translation',
+  'Voice Clone Protection',
+  'Quantum Messaging',
+  'Cross-App Secure Bridge',
+  'Autonomous Conversation Assistant',
+];
+
+const BACKGROUND_SYSTEMS = [
+  'Chat Engine',
+  'Realtime Messaging',
+  'Search Index',
+  'Presence Engine',
+  'Notification Sync',
+  'Vault Integration',
+  'AI Suggestions',
+  'Privacy Shield',
+];
+
+const INITIAL_CHATS = [
   {
-    id: 'chat-1',
-    username: 'arush.dev',
+    id: '123',
+    username: 'aman.satwai',
+    displayName: 'Aman Satwai',
+    avatarUrl: 'https://i.pravatar.cc/160?u=aman.satwai',
     verified: true,
-    lastMessage: 'Ship the Home feed today?',
-    lastMessageTime: '2m',
-    unreadCount: 3,
     online: true,
-    typing: true,
+    lastSeen: 'recently',
+    lastMessage: 'Let us review the new build.',
+    lastMessageType: 'text',
+    lastMessageAt: Date.now() - 120000,
+    unreadCount: 2,
+    typing: false,
     pinned: true,
-    archived: false,
     muted: false,
-    avatarColor: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-    isGroup: false,
-    description: 'Developer account for Aarush project',
-  },
-  {
-    id: 'chat-2',
-    username: 'design.loop',
-    verified: false,
-    lastMessage: 'I sent the updated carousel mockups.',
-    lastMessageTime: '18m',
-    unreadCount: 0,
-    online: false,
-    typing: false,
-    pinned: false,
     archived: false,
-    muted: true,
-    avatarColor: 'linear-gradient(135deg, #ff4fd8, #7c5cff)',
-    isGroup: false,
-    description: 'Product design and motion',
+    hidden: false,
+    locked: false,
+    vaulted: false,
+    favorite: true,
+    requested: false,
+    ai: false,
+    category: 'Friends',
   },
   {
-    id: 'chat-3',
-    username: 'Aarush Team',
+    id: '124',
+    username: 'aarush.team',
+    displayName: 'Aarush Team',
+    avatarUrl: 'https://i.pravatar.cc/160?u=aarush.team',
     verified: true,
-    lastMessage: 'New build review at 8 PM.',
-    lastMessageTime: '31m',
-    unreadCount: 8,
     online: true,
+    lastSeen: 'active now',
+    lastMessage: 'Build review at 8 PM.',
+    lastMessageType: 'text',
+    lastMessageAt: Date.now() - 1800000,
+    unreadCount: 8,
     typing: false,
     pinned: false,
-    archived: false,
     muted: false,
-    avatarColor: 'linear-gradient(135deg, #4dd7ff, #7c5cff)',
+    archived: false,
+    hidden: false,
+    locked: false,
+    vaulted: false,
+    favorite: false,
+    requested: false,
+    ai: false,
     isGroup: true,
-    description: 'Core team planning and build updates',
+    category: 'Groups',
   },
   {
-    id: 'chat-4',
-    username: 'video.studio',
-    verified: true,
-    lastMessage: 'Can you test the reels preview screen?',
-    lastMessageTime: '1h',
-    unreadCount: 0,
+    id: '125',
+    username: 'design.loop',
+    displayName: 'Design Loop',
+    avatarUrl: 'https://i.pravatar.cc/160?u=design.loop',
+    verified: false,
     online: false,
+    lastSeen: '18 minutes ago',
+    lastMessage: 'Sent a photo',
+    lastMessageType: 'image',
+    lastMessageAt: Date.now() - 3600000,
+    unreadCount: 0,
     typing: false,
     pinned: false,
-    archived: true,
+    muted: true,
+    archived: false,
+    hidden: false,
+    locked: false,
+    vaulted: false,
+    favorite: true,
+    requested: false,
+    ai: false,
+    category: 'Creators',
+  },
+  {
+    id: '126',
+    username: 'creator.lab',
+    displayName: 'Creator Lab',
+    avatarUrl: 'https://i.pravatar.cc/160?u=creator.lab',
+    verified: true,
+    online: false,
+    lastSeen: 'Yesterday',
+    lastMessage: 'Voice message',
+    lastMessageType: 'voice',
+    lastMessageAt: Date.now() - 7200000,
+    unreadCount: 0,
+    typing: false,
+    pinned: false,
     muted: false,
-    avatarColor: 'linear-gradient(135deg, #ffb347, #ff4fd8)',
-    isGroup: false,
-    description: 'Video and short-form experiments',
+    archived: false,
+    hidden: false,
+    locked: false,
+    vaulted: false,
+    favorite: false,
+    requested: false,
+    ai: false,
+    category: 'Work',
+  },
+  {
+    id: '127',
+    username: 'family.circle',
+    displayName: 'Family Circle',
+    avatarUrl: 'https://i.pravatar.cc/160?u=family.circle',
+    verified: false,
+    online: false,
+    lastSeen: '2 hours ago',
+    lastMessage: 'Draft: See you tomorrow',
+    lastMessageType: 'draft',
+    lastMessageAt: Date.now() - 9000000,
+    unreadCount: 0,
+    typing: false,
+    pinned: false,
+    muted: false,
+    archived: false,
+    hidden: false,
+    locked: false,
+    vaulted: false,
+    favorite: true,
+    requested: false,
+    ai: false,
+    isGroup: true,
+    category: 'Family',
+  },
+  {
+    id: '128',
+    username: 'aarush.ai',
+    displayName: 'Aarush AI',
+    avatarUrl: 'https://i.pravatar.cc/160?u=aarush.ai',
+    verified: true,
+    online: true,
+    lastSeen: 'active now',
+    lastMessage: 'I prepared three reply suggestions.',
+    lastMessageType: 'ai',
+    lastMessageAt: Date.now() - 14400000,
+    unreadCount: 1,
+    typing: false,
+    pinned: false,
+    muted: false,
+    archived: false,
+    hidden: false,
+    locked: false,
+    vaulted: false,
+    favorite: false,
+    requested: false,
+    ai: true,
+    category: 'AI',
+  },
+  {
+    id: '129',
+    username: 'private.safe',
+    displayName: 'Private Safe',
+    avatarUrl: 'https://i.pravatar.cc/160?u=private.safe',
+    verified: false,
+    online: false,
+    lastSeen: '3 days ago',
+    lastMessage: 'Locked conversation',
+    lastMessageType: 'locked',
+    lastMessageAt: Date.now() - 86400000,
+    unreadCount: 0,
+    typing: false,
+    pinned: false,
+    muted: false,
+    archived: false,
+    hidden: true,
+    locked: true,
+    vaulted: true,
+    favorite: false,
+    requested: false,
+    ai: false,
+    category: 'Hidden',
   },
 ];
 
-const conversationMap = {
-  'chat-1': [
-    {
-      id: 'm1',
-      sender: 'them',
-      type: 'text',
-      text: 'Ship the Home feed today?',
-      time: '2:12 PM',
-      sent: true,
-      delivered: true,
-      seen: true,
-      reaction: '🔥',
-    },
-    {
-      id: 'm2',
-      sender: 'me',
-      type: 'text',
-      text: 'Yes, I am finishing the final pass on TopBar and BottomNav.',
-      time: '2:13 PM',
-      sent: true,
-      delivered: true,
-      seen: true,
-      reaction: null,
-    },
-    {
-      id: 'm3',
-      sender: 'them',
-      type: 'image',
-      text: 'Preview screenshot attached.',
-      time: '2:14 PM',
-      sent: true,
-      delivered: true,
-      seen: false,
-      image:
-        'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=80',
-    },
-    {
-      id: 'm4',
-      sender: 'me',
-      type: 'voice',
-      text: 'Voice message',
-      time: '2:16 PM',
-      sent: true,
-      delivered: true,
-      seen: false,
-      duration: '0:18',
-    },
-  ],
-  'chat-2': [
-    {
-      id: 'd1',
-      sender: 'them',
-      type: 'text',
-      text: 'I sent the updated carousel mockups.',
-      time: '1:42 PM',
-      sent: true,
-      delivered: true,
-      seen: true,
-    },
-    {
-      id: 'd2',
-      sender: 'me',
-      type: 'text',
-      text: 'Great, I will plug them into the Home screen after this pass.',
-      time: '1:45 PM',
-      sent: true,
-      delivered: true,
-      seen: true,
-    },
-  ],
-  'chat-3': [
-    {
-      id: 'g1',
-      sender: 'them',
-      type: 'text',
-      text: 'New build review at 8 PM.',
-      time: '12:20 PM',
-      sent: true,
-      delivered: true,
-      seen: true,
-    },
-    {
-      id: 'g2',
-      sender: 'me',
-      type: 'text',
-      text: '@team Please check the latest HomeFeed and Chats page structure.',
-      time: '12:24 PM',
-      sent: true,
-      delivered: true,
-      seen: true,
-    },
-  ],
-  'chat-4': [
-    {
-      id: 'v1',
-      sender: 'them',
-      type: 'text',
-      text: 'Can you test the reels preview screen?',
-      time: '11:04 AM',
-      sent: true,
-      delivered: true,
-      seen: true,
-    },
-    {
-      id: 'v2',
-      sender: 'me',
-      type: 'file',
-      text: 'ReelsPreviewNotes.pdf',
-      time: '11:08 AM',
-      sent: true,
-      delivered: true,
-      seen: false,
-      fileSize: '2.4 MB',
-    },
-  ],
-};
+function readStorage(key, fallback) {
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
 
-const quickCalls = [
-  { label: 'Voice call', icon: Phone },
-  { label: 'Video call', icon: Video },
-  { label: 'Group call', icon: Users },
-  { label: 'Call history', icon: Clock3 },
-  { label: 'Screen share', icon: Sparkles },
-  { label: 'Call link', icon: Link2 },
-];
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
-function Avatar({ user }) {
+function writeStorage(key, value) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage may be unavailable in restricted browser contexts.
+  }
+}
+
+function formatChatTime(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
+  return date.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+function getPreview(chat) {
+  if (chat.typing) {
+    return {
+      label: 'Typing…',
+      color: '#4dd7ff',
+      icon: MessageCircle,
+    };
+  }
+
+  if (chat.lastMessageType === 'image') {
+    return {
+      label: chat.lastMessage || 'Sent a photo',
+      color: '#aab6cf',
+      icon: ImageIcon,
+    };
+  }
+
+  if (chat.lastMessageType === 'video') {
+    return {
+      label: chat.lastMessage || 'Sent a video',
+      color: '#aab6cf',
+      icon: ImageIcon,
+    };
+  }
+
+  if (chat.lastMessageType === 'voice') {
+    return {
+      label: chat.lastMessage || 'Voice message',
+      color: '#aab6cf',
+      icon: Mic,
+    };
+  }
+
+  if (chat.lastMessageType === 'file') {
+    return {
+      label: chat.lastMessage || 'Shared a file',
+      color: '#aab6cf',
+      icon: FileText,
+    };
+  }
+
+  if (chat.lastMessageType === 'draft') {
+    return {
+      label: chat.lastMessage || 'Draft: See you tomorrow',
+      color: '#ffcf8a',
+      icon: Edit3,
+    };
+  }
+
+  if (chat.lastMessageType === 'locked') {
+    return {
+      label: chat.lastMessage || 'Locked conversation',
+      color: '#c2b9ff',
+      icon: Lock,
+    };
+  }
+
+  if (chat.lastMessageType === 'ai') {
+    return {
+      label: chat.lastMessage || 'AI suggestion ready',
+      color: '#a9edff',
+      icon: Bot,
+    };
+  }
+
+  return {
+    label: chat.lastMessage || 'No messages yet',
+    color: '#aab6cf',
+    icon: MessageCircle,
+  };
+}
+
+function Avatar({ chat }) {
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '3.05rem',
-        height: '3.05rem',
-        borderRadius: '999px',
-        padding: '2.5px',
-        background: user.avatarColor || 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-        boxShadow: '0 0 18px rgba(124,92,255,0.16)',
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          borderRadius: '999px',
-          display: 'grid',
-          placeItems: 'center',
-          color: '#fff',
-          fontWeight: 800,
-          fontSize: '0.95rem',
-          background: 'linear-gradient(135deg, rgba(16,20,31,0.98), rgba(27,34,53,0.98))',
-        }}
-      >
-        {user.isGroup ? 'G' : user.username?.[0]?.toUpperCase() || 'A'}
-      </div>
+    <div style={styles.avatarWrapper}>
+      <img
+        src={chat.avatarUrl}
+        alt={`${chat.displayName} profile`}
+        style={styles.avatar}
+      />
 
-      {user.online ? (
-        <span
-          style={{
-            position: 'absolute',
-            right: '0.1rem',
-            bottom: '0.1rem',
-            width: '0.72rem',
-            height: '0.72rem',
-            borderRadius: '999px',
-            background: '#3df2a8',
-            border: '2px solid #0c111b',
-            boxShadow: '0 0 10px rgba(61,242,168,0.45)',
-          }}
-        />
+      {chat.online ? <span style={styles.onlineDot} /> : null}
+
+      {chat.locked ? (
+        <span style={styles.lockedBadge}>
+          <Lock size={9} />
+        </span>
       ) : null}
     </div>
   );
 }
 
-function MessageBubble({ message, isMe, onOpenMenu }) {
+function VerifiedBadge() {
   return (
-    <div style={{ display: 'grid', justifyItems: isMe ? 'end' : 'start', gap: '0.22rem' }}>
-      <div
-        style={{
-          maxWidth: '78%',
-          borderRadius: '1.15rem',
-          padding: '0.82rem 0.9rem',
-          background: isMe
-            ? 'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.14))'
-            : 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          color: '#f4f7ff',
-          boxShadow: isMe ? '0 14px 28px rgba(124,92,255,0.14)' : 'none',
-          position: 'relative',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => onOpenMenu(message)}
-          aria-label="Open message actions"
-          style={{
-            position: 'absolute',
-            top: '0.35rem',
-            right: isMe ? '0.35rem' : 'auto',
-            left: isMe ? 'auto' : '0.35rem',
-            width: '1.75rem',
-            height: '1.75rem',
-            border: '0',
-            borderRadius: '999px',
-            background: 'rgba(255,255,255,0.08)',
-            color: '#fff',
-            display: 'grid',
-            placeItems: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <EllipsisVertical size={14} />
-        </button>
-
-        {message.type === 'text' ? (
-          <p style={{ margin: 0, paddingTop: '0.35rem', lineHeight: 1.55, fontSize: '0.92rem' }}>{message.text}</p>
-        ) : null}
-
-        {message.type === 'image' ? (
-          <div style={{ display: 'grid', gap: '0.45rem', paddingTop: '0.35rem' }}>
-            <img
-              src={message.image}
-              alt="Shared media"
-              style={{
-                width: '100%',
-                maxWidth: '18rem',
-                aspectRatio: '4 / 3',
-                objectFit: 'cover',
-                borderRadius: '0.9rem',
-                border: '1px solid rgba(255,255,255,0.08)',
-              }}
-            />
-            <span style={{ fontSize: '0.88rem', color: '#dce5f8' }}>{message.text}</span>
-          </div>
-        ) : null}
-
-        {message.type === 'video' ? (
-          <div style={{ display: 'grid', gap: '0.45rem', paddingTop: '0.35rem' }}>
-            <div
-              style={{
-                width: '100%',
-                maxWidth: '18rem',
-                aspectRatio: '4 / 3',
-                borderRadius: '0.9rem',
-                background: 'linear-gradient(135deg, rgba(16,20,31,1), rgba(27,34,53,1))',
-                display: 'grid',
-                placeItems: 'center',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.08)',
-              }}
-            >
-              <Video size={24} />
-            </div>
-            <span style={{ fontSize: '0.88rem', color: '#dce5f8' }}>{message.text}</span>
-          </div>
-        ) : null}
-
-        {message.type === 'voice' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.35rem' }}>
-            <span
-              style={{
-                width: '2.2rem',
-                height: '2.2rem',
-                borderRadius: '999px',
-                background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-                display: 'grid',
-                placeItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Mic size={15} />
-            </span>
-            <div style={{ display: 'grid', gap: '0.15rem' }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>{message.text}</span>
-              <span style={{ fontSize: '0.78rem', color: '#aab4cb' }}>{message.duration}</span>
-            </div>
-          </div>
-        ) : null}
-
-        {message.type === 'file' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', paddingTop: '0.35rem' }}>
-            <span
-              style={{
-                width: '2.35rem',
-                height: '2.35rem',
-                borderRadius: '0.85rem',
-                background: 'rgba(255,255,255,0.08)',
-                display: 'grid',
-                placeItems: 'center',
-              }}
-            >
-              <FileText size={15} />
-            </span>
-            <div style={{ display: 'grid', gap: '0.12rem' }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>{message.text}</span>
-              <span style={{ fontSize: '0.78rem', color: '#aab4cb' }}>{message.fileSize}</span>
-            </div>
-          </div>
-        ) : null}
-
-        {message.reaction ? (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '-0.6rem',
-              right: isMe ? '0.8rem' : 'auto',
-              left: isMe ? 'auto' : '0.8rem',
-              width: '1.3rem',
-              height: '1.3rem',
-              borderRadius: '999px',
-              background: 'rgba(0,0,0,0.72)',
-              display: 'grid',
-              placeItems: 'center',
-              border: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            {message.reaction}
-          </div>
-        ) : null}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#95a0bc', fontSize: '0.74rem' }}>
-        <span>{message.time}</span>
-        {isMe ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-            {message.sent ? <Check size={12} /> : <Clock3 size={12} />}
-            {message.delivered ? <CheckCheck size={12} /> : null}
-            {message.seen ? <CheckCheck size={12} color="#4dd7ff" /> : null}
-          </span>
-        ) : null}
-      </div>
-    </div>
+    <span style={styles.verifiedBadge} aria-label="Verified">
+      ✓
+    </span>
   );
 }
 
-function ActionChip({ icon: Icon, label, onClick }) {
+function ChatRow({ chat, onOpen, onAction }) {
+  const preview = getPreview(chat);
+  const PreviewIcon = preview.icon;
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        border: '1px solid rgba(255,255,255,0.08)',
-        background: 'rgba(255,255,255,0.05)',
-        color: '#f3f6ff',
-        borderRadius: '1rem',
-        padding: '0.85rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.65rem',
-        cursor: 'pointer',
-        textAlign: 'left',
+    <article
+      style={styles.chatRow}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onAction('menu');
       }}
     >
-      <span
-        style={{
-          width: '2rem',
-          height: '2rem',
-          borderRadius: '999px',
-          display: 'grid',
-          placeItems: 'center',
-          background: 'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.14))',
-        }}
+      <button
+        type="button"
+        onClick={onOpen}
+        style={styles.chatRowButton}
+        aria-label={`Open conversation with ${chat.displayName}`}
       >
-        <Icon size={14} />
-      </span>
-      <span style={{ fontSize: '0.86rem', fontWeight: 700 }}>{label}</span>
-    </button>
+        <Avatar chat={chat} />
+
+        <span style={styles.chatContent}>
+          <span style={styles.nameLine}>
+            <span style={styles.displayName}>{chat.displayName}</span>
+
+            {chat.verified ? <VerifiedBadge /> : null}
+
+            {chat.isGroup ? (
+              <span style={styles.groupBadge}>Group</span>
+            ) : null}
+          </span>
+
+          <span style={styles.usernameLine}>@{chat.username}</span>
+
+          <span
+            style={{
+              ...styles.messagePreview,
+              color: preview.color,
+            }}
+          >
+            <PreviewIcon size={12} />
+            <span>{preview.label}</span>
+          </span>
+        </span>
+
+        <span style={styles.chatMeta}>
+          <span style={styles.chatTime}>
+            {formatChatTime(chat.lastMessageAt)}
+          </span>
+
+          {chat.unreadCount > 0 ? (
+            <span style={styles.unreadBadge}>
+              {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+            </span>
+          ) : null}
+
+          <span style={styles.rowIndicators}>
+            {chat.pinned ? <Pin size={12} /> : null}
+            {chat.muted ? <VolumeX size={12} /> : null}
+            {chat.archived ? <Archive size={12} /> : null}
+            {chat.vaulted ? <FolderLock size={12} /> : null}
+          </span>
+        </span>
+      </button>
+
+      <div style={styles.rowActions} aria-label="Chat actions">
+        <button
+          type="button"
+          onClick={() => onAction(chat.pinned ? 'unpin' : 'pin')}
+          style={styles.rowActionButton}
+          aria-label={chat.pinned ? 'Unpin chat' : 'Pin chat'}
+        >
+          <Pin size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onAction(chat.archived ? 'unarchive' : 'archive')}
+          style={styles.rowActionButton}
+          aria-label={chat.archived ? 'Unarchive chat' : 'Archive chat'}
+        >
+          <Archive size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onAction(chat.muted ? 'unmute' : 'mute')}
+          style={styles.rowActionButton}
+          aria-label={chat.muted ? 'Unmute chat' : 'Mute chat'}
+        >
+          <VolumeX size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onAction('hide')}
+          style={styles.rowActionButton}
+          aria-label="Hide chat"
+        >
+          <EyeOff size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onAction('vault')}
+          style={styles.rowActionButton}
+          aria-label="Move chat to vault"
+        >
+          <FolderLock size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            onAction(chat.unreadCount > 0 ? 'read' : 'unread')
+          }
+          style={styles.rowActionButton}
+          aria-label={
+            chat.unreadCount > 0 ? 'Mark chat read' : 'Mark chat unread'
+          }
+        >
+          <CheckCheck size={13} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onAction('delete')}
+          style={styles.rowActionButtonDanger}
+          aria-label="Delete chat"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function SearchPanel({
+  query,
+  onQueryChange,
+  searchHistory,
+  savedSearches,
+  onSelectSearch,
+  onClearHistory,
+  onRemoveSavedSearch,
+}) {
+  const [showPanel, setShowPanel] = useState(false);
+
+  const suggestions = [
+    'Unread messages',
+    'Groups',
+    'Photos',
+    'Voice messages',
+    'Aarush AI',
+  ];
+
+  return (
+    <section style={styles.searchSection}>
+      <div style={styles.searchBar}>
+        <Search size={17} color="#9aa8c1" />
+
+        <input
+          value={query}
+          onFocus={() => setShowPanel(true)}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search chats, people, groups, messages"
+          style={styles.searchInput}
+          aria-label="Search chats"
+        />
+
+        {query ? (
+          <button
+            type="button"
+            onClick={() => onQueryChange('')}
+            style={styles.searchIconButton}
+            aria-label="Clear search"
+          >
+            <X size={16} />
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setShowPanel((value) => !value)}
+          style={styles.searchIconButton}
+          aria-label="Toggle recent and saved searches"
+        >
+          <History size={16} />
+        </button>
+      </div>
+
+      {showPanel ? (
+        <div style={styles.searchPanel}>
+          <div style={styles.searchPanelHeader}>
+            <span>Search suggestions</span>
+
+            <button
+              type="button"
+              onClick={() => setShowPanel(false)}
+              style={styles.closeSearchButton}
+              aria-label="Close search suggestions"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          <div style={styles.suggestionList}>
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => {
+                  onQueryChange(suggestion);
+                  setShowPanel(false);
+                }}
+                style={styles.suggestionButton}
+              >
+                <Sparkles size={14} />
+                {suggestion}
+              </button>
+            ))}
+          </div>
+
+          {searchHistory.length > 0 ? (
+            <div style={styles.searchGroup}>
+              <div style={styles.searchGroupHeader}>
+                <span>Recent searches</span>
+
+                <button
+                  type="button"
+                  onClick={onClearHistory}
+                  style={styles.clearTextButton}
+                >
+                  Clear all
+                </button>
+              </div>
+
+              {searchHistory.map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  onClick={() => {
+                    onQueryChange(item);
+                    setShowPanel(false);
+                  }}
+                  style={styles.historyButton}
+                >
+                  <History size={14} />
+                  {item}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {savedSearches.length > 0 ? (
+            <div style={styles.searchGroup}>
+              <div style={styles.searchGroupHeader}>
+                <span>Saved searches</span>
+              </div>
+
+              {savedSearches.map((item) => (
+                <div key={item} style={styles.savedSearchRow}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onQueryChange(item);
+                      setShowPanel(false);
+                    }}
+                    style={styles.historyButton}
+                  >
+                    <Star size={14} />
+                    {item}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onRemoveSavedSearch(item)}
+                    style={styles.removeSavedButton}
+                    aria-label={`Remove saved search ${item}`}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function FloatingActionMenu({ onClose, onAction }) {
+  return (
+    <div style={styles.floatingMenu}>
+      <button
+        type="button"
+        onClick={() => onAction('user')}
+        style={styles.floatingMenuItem}
+      >
+        <UserPlus size={16} />
+        Search users
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onAction('group')}
+        style={styles.floatingMenuItem}
+      >
+        <Users size={16} />
+        New group
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onAction('ai')}
+        style={styles.floatingMenuItem}
+      >
+        <Bot size={16} />
+        AI chat
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onAction('secret')}
+        style={styles.floatingMenuItem}
+      >
+        <Shield size={16} />
+        Secret chat
+      </button>
+
+      <button
+        type="button"
+        onClick={onClose}
+        style={styles.floatingMenuClose}
+      >
+        <X size={15} />
+        Close
+      </button>
+    </div>
   );
 }
 
 export default function ChatsPage() {
   const navigate = useNavigate();
-  const [activeChatId, setActiveChatId] = useState('chat-1');
-  const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState('list');
-  const [menuMessage, setMenuMessage] = useState(null);
 
-  const activeUser = chatUsers.find((user) => user.id === activeChatId) || chatUsers[0];
-  const messages = conversationMap[activeChatId] || [];
+  const [chats, setChats] = useState(() =>
+    readStorage(STORAGE_KEY, INITIAL_CHATS)
+  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [searchHistory, setSearchHistory] = useState(() =>
+    readStorage(SEARCH_HISTORY_KEY, [])
+  );
+  const [savedSearches, setSavedSearches] = useState(() =>
+    readStorage(SAVED_SEARCHES_KEY, [])
+  );
+  const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+
+  useEffect(() => {
+    writeStorage(STORAGE_KEY, chats);
+  }, [chats]);
+
+  useEffect(() => {
+    writeStorage(SEARCH_HISTORY_KEY, searchHistory);
+  }, [searchHistory]);
+
+  useEffect(() => {
+    writeStorage(SAVED_SEARCHES_KEY, savedSearches);
+  }, [savedSearches]);
+
+  const updateSearch = (value) => {
+    setSearchQuery(value);
+
+    const normalized = value.trim();
+
+    if (!normalized) {
+      return;
+    }
+
+    setSearchHistory((current) => {
+      const next = [
+        normalized,
+        ...current.filter((item) => item !== normalized),
+      ];
+
+      return next.slice(0, 8);
+    });
+  };
+
+  const updateChat = (chatId, updater) => {
+    setChats((current) =>
+      current.map((chat) => {
+        if (chat.id !== chatId) {
+          return chat;
+        }
+
+        return typeof updater === 'function'
+          ? updater(chat)
+          : { ...chat, ...updater };
+      })
+    );
+  };
+
+  const handleChatAction = (chatId, action) => {
+    if (action === 'menu') {
+      return;
+    }
+
+    if (action === 'delete') {
+      setChats((current) =>
+        current.filter((chat) => chat.id !== chatId)
+      );
+      return;
+    }
+
+    if (action === 'read') {
+      updateChat(chatId, { unreadCount: 0 });
+      return;
+    }
+
+    if (action === 'unread') {
+      updateChat(chatId, (chat) => ({
+        ...chat,
+        unreadCount: chat.unreadCount || 1,
+      }));
+      return;
+    }
+
+    const fieldMap = {
+      pin: 'pinned',
+      unpin: 'pinned',
+      archive: 'archived',
+      unarchive: 'archived',
+      mute: 'muted',
+      unmute: 'muted',
+      hide: 'hidden',
+      vault: 'vaulted',
+    };
+
+    const field = fieldMap[action];
+
+    if (!field) {
+      return;
+    }
+
+    updateChat(chatId, {
+      [field]: !['unpin', 'unarchive', 'unmute'].includes(action),
+    });
+  };
 
   const filteredChats = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return chatUsers;
-    return chatUsers.filter((chat) => {
-      const haystack = [
-        chat.username,
-        chat.lastMessage,
-        chat.description,
-        chat.isGroup ? 'group' : 'user',
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(query);
+    const query = searchQuery.trim().toLowerCase();
+
+    let result = chats.filter((chat) => {
+      if (activeTab === 'unread') {
+        return chat.unreadCount > 0;
+      }
+
+      if (activeTab === 'groups') {
+        return chat.isGroup;
+      }
+
+      if (activeTab === 'archived') {
+        return chat.archived;
+      }
+
+      if (activeTab === 'requests') {
+        return chat.requested;
+      }
+
+      if (activeTab === 'favorites') {
+        return chat.favorite;
+      }
+
+      if (activeTab === 'ai') {
+        return chat.ai;
+      }
+
+      if (activeTab === 'hidden') {
+        return chat.hidden || chat.locked || chat.vaulted;
+      }
+
+      return !chat.archived && !chat.hidden;
     });
-  }, [search]);
 
-  const chatSettings = [
-    { label: activeUser.pinned ? 'Unpin chat' : 'Pin chat', icon: Pin },
-    { label: activeUser.archived ? 'Unarchive chat' : 'Archive chat', icon: Archive },
-    { label: activeUser.muted ? 'Unmute notifications' : 'Mute notifications', icon: VolumeX },
-    { label: 'Change chat wallpaper', icon: Sparkles },
-    { label: 'Disappearing messages', icon: Clock3 },
-    { label: 'Read receipts', icon: CheckCheck },
-    { label: 'Typing indicator show/hide', icon: MessageCircle },
-    { label: 'Online status show/hide', icon: Wifi },
-    { label: 'Last seen show/hide', icon: Eye },
-    { label: 'Block user', icon: Ban },
-    { label: 'Report user', icon: Flag },
-    { label: 'Export chat', icon: FileText },
-    { label: 'Clear chat', icon: Trash2 },
-    { label: 'Delete chat', icon: SquareSlash },
-  ];
+    if (activeCategory !== 'All') {
+      result = result.filter((chat) => {
+        if (activeCategory === 'Groups') {
+          return chat.isGroup;
+        }
 
-  const menuActions = [
-    { label: 'Reply', icon: Reply },
-    { label: 'Forward', icon: Forward },
-    { label: 'Delete for everyone', icon: Trash2 },
-    { label: 'Delete for me', icon: X },
-    { label: 'Copy message', icon: Copy },
-    { label: 'Edit message', icon: Edit3 },
-    { label: 'Reactions', icon: Smile },
-  ];
+        if (activeCategory === 'Favorites') {
+          return chat.favorite;
+        }
 
-  const styles = {
-    page: {
-      minHeight: '100vh',
-      background:
-        'radial-gradient(circle at top, rgba(34, 43, 68, 0.45) 0%, rgba(10, 13, 20, 1) 38%, rgba(7, 9, 14, 1) 100%)',
-      color: '#f4f7ff',
-      display: 'grid',
-      gridTemplateRows: 'auto 1fr',
-      paddingBottom: '0',
-    },
-    topBar: {
-      position: 'sticky',
-      top: 0,
-      zIndex: 20,
-      background: 'rgba(9, 12, 19, 0.9)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
-    },
-    topInner: {
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '0.8rem 0.9rem',
-      display: 'grid',
-      gridTemplateColumns: 'auto 1fr auto',
-      alignItems: 'center',
-      gap: '0.7rem',
-    },
-    iconBtn: {
-      width: '2.75rem',
-      height: '2.75rem',
-      borderRadius: '999px',
-      border: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(255,255,255,0.05)',
-      color: '#fff',
-      display: 'grid',
-      placeItems: 'center',
-      cursor: 'pointer',
-    },
-    titleBlock: {
-      minWidth: 0,
-      display: 'grid',
-      justifyItems: 'center',
-      gap: '0.2rem',
-    },
-    title: {
-      margin: 0,
-      fontSize: '1rem',
-      fontWeight: 900,
-      letterSpacing: '0.01em',
-    },
-    subtitle: {
-      margin: 0,
-      color: '#94a0bb',
-      fontSize: '0.78rem',
-      fontWeight: 600,
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.35rem',
-    },
-    layout: {
-      maxWidth: '1200px',
-      width: '100%',
-      margin: '0 auto',
-      padding: '0.9rem',
-      display: 'grid',
-      gridTemplateColumns: '1.05fr 1.6fr',
-      gap: '0.9rem',
-      minHeight: 'calc(100vh - 4.5rem)',
-    },
-    panel: {
-      background: 'rgba(15, 19, 30, 0.9)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: '1.35rem',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.28)',
-      backdropFilter: 'blur(14px)',
-      WebkitBackdropFilter: 'blur(14px)',
-      overflow: 'hidden',
-    },
-    leftPanel: {
-      display: 'grid',
-      gridTemplateRows: 'auto auto auto 1fr',
-      minHeight: '0',
-    },
-    searchBox: {
-      margin: '0.9rem',
-      borderRadius: '1rem',
-      border: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(255,255,255,0.05)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.55rem',
-      padding: '0.8rem 0.9rem',
-      color: '#98a4c2',
-    },
-    searchInput: {
-      flex: 1,
-      border: 0,
-      outline: 0,
-      background: 'transparent',
-      color: '#fff',
-      fontSize: '0.9rem',
-    },
-    list: {
-      display: 'grid',
-      gap: '0.45rem',
-      padding: '0 0.9rem 0.9rem',
-      overflowY: 'auto',
-    },
-    chatItem: (active) => ({
-      display: 'grid',
-      gridTemplateColumns: 'auto 1fr auto',
-      gap: '0.75rem',
-      alignItems: 'center',
-      borderRadius: '1.1rem',
-      padding: '0.8rem',
-      border: '1px solid ' + (active ? 'rgba(124,92,255,0.24)' : 'rgba(255,255,255,0.06)'),
-      background: active
-        ? 'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(77,215,255,0.08))'
-        : 'rgba(255,255,255,0.04)',
-      cursor: 'pointer',
-      transition: 'transform 180ms ease, background 180ms ease, border-color 180ms ease',
-    }),
-    itemText: {
-      minWidth: 0,
-      display: 'grid',
-      gap: '0.22rem',
-    },
-    itemTop: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.45rem',
-      minWidth: 0,
-      flexWrap: 'wrap',
-    },
-    username: {
-      fontSize: '0.92rem',
-      fontWeight: 800,
-      color: '#f6f8ff',
-    },
-    metaLine: {
-      color: '#98a4c2',
-      fontSize: '0.8rem',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    },
-    unreadBadge: {
-      minWidth: '1.35rem',
-      height: '1.35rem',
-      borderRadius: '999px',
-      background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-      color: '#fff',
-      display: 'inline-grid',
-      placeItems: 'center',
-      fontSize: '0.72rem',
-      fontWeight: 900,
-      padding: '0 0.3rem',
-    },
-    rightPanel: {
-      display: 'grid',
-      gridTemplateRows: 'auto auto 1fr auto',
-      minHeight: '0',
-    },
-    convoHeader: {
-      padding: '0.9rem',
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '0.75rem',
-    },
-    convoInfo: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.75rem',
-      minWidth: 0,
-    },
-    convoMeta: {
-      minWidth: 0,
-      display: 'grid',
-      gap: '0.18rem',
-    },
-    convoTitle: {
-      fontSize: '0.95rem',
-      fontWeight: 900,
-      color: '#f6f8ff',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.4rem',
-      flexWrap: 'wrap',
-    },
-    convoDesc: {
-      margin: 0,
-      color: '#95a0bc',
-      fontSize: '0.8rem',
-      lineHeight: 1.45,
-    },
-    convoActions: {
-      display: 'flex',
-      gap: '0.45rem',
-      flexWrap: 'wrap',
-      justifyContent: 'flex-end',
-    },
-    convoBody: {
-      padding: '0.9rem',
-      overflowY: 'auto',
-      display: 'grid',
-      gap: '0.8rem',
-      alignContent: 'start',
-    },
-    composer: {
-      padding: '0.9rem',
-      borderTop: '1px solid rgba(255,255,255,0.08)',
-      display: 'grid',
-      gap: '0.7rem',
-    },
-    composerRow: {
-      display: 'grid',
-      gridTemplateColumns: 'auto 1fr auto',
-      gap: '0.6rem',
-      alignItems: 'center',
-    },
-    composerInput: {
-      width: '100%',
-      borderRadius: '999px',
-      border: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(255,255,255,0.05)',
-      color: '#fff',
-      outline: 'none',
-      padding: '0.82rem 0.95rem',
-      fontSize: '0.9rem',
-    },
-    sendBtn: {
-      border: 0,
-      borderRadius: '999px',
-      width: '2.9rem',
-      height: '2.9rem',
-      background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-      color: '#fff',
-      display: 'grid',
-      placeItems: 'center',
-      cursor: 'pointer',
-      boxShadow: '0 10px 22px rgba(124,92,255,0.18)',
-    },
-    composerTools: {
-      display: 'flex',
-      gap: '0.45rem',
-      flexWrap: 'wrap',
-    },
-    toolBtn: {
-      border: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(255,255,255,0.05)',
-      color: '#f4f7ff',
-      borderRadius: '999px',
-      padding: '0.6rem 0.8rem',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.35rem',
-      cursor: 'pointer',
-      fontSize: '0.8rem',
-      fontWeight: 700,
-    },
-    infoBanner: {
-      margin: '0.9rem',
-      padding: '0.8rem 0.9rem',
-      borderRadius: '1rem',
-      background: 'rgba(255,255,255,0.05)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      color: '#d9e2f4',
-      fontSize: '0.84rem',
-      lineHeight: 1.55,
-    },
-    menuOverlay: {
-      position: 'fixed',
-      inset: 0,
-      zIndex: 1200,
-      background: 'rgba(2,5,10,0.64)',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
-      display: 'grid',
-      placeItems: 'center',
-      padding: '1rem',
-    },
-    menuPanel: {
-      width: 'min(100%, 420px)',
-      borderRadius: '1.4rem',
-      background: 'linear-gradient(180deg, rgba(15,19,30,0.98), rgba(11,15,24,0.98))',
-      border: '1px solid rgba(255,255,255,0.08)',
-      boxShadow: '0 24px 70px rgba(0,0,0,0.45)',
-      padding: '0.9rem',
-    },
-    menuList: {
-      display: 'grid',
-      gap: '0.45rem',
-      marginTop: '0.75rem',
-    },
-    menuItem: {
-      width: '100%',
-      border: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(255,255,255,0.05)',
-      color: '#f2f6ff',
-      borderRadius: '1rem',
-      padding: '0.88rem 0.95rem',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.7rem',
-      textAlign: 'left',
-      cursor: 'pointer',
-      fontSize: '0.88rem',
-      fontWeight: 700,
-    },
-    emptyState: {
-      padding: '2rem 1rem',
-      textAlign: 'center',
-      color: '#9aa5be',
-      fontSize: '0.92rem',
-      lineHeight: 1.6,
-    },
+        if (activeCategory === 'Hidden') {
+          return chat.hidden || chat.locked || chat.vaulted;
+        }
+
+        return chat.category === activeCategory;
+      });
+    }
+
+    if (query) {
+      result = result.filter((chat) => {
+        const haystack = [
+          chat.id,
+          chat.username,
+          chat.displayName,
+          chat.lastMessage,
+          chat.category,
+          chat.isGroup ? 'group' : 'person',
+          chat.lastMessageType,
+        ]
+          .join(' ')
+          .toLowerCase();
+
+        return haystack.includes(query);
+      });
+    }
+
+    return [...result].sort((first, second) => {
+      if (first.pinned !== second.pinned) {
+        return Number(second.pinned) - Number(first.pinned);
+      }
+
+      return (
+        new Date(second.lastMessageAt).getTime() -
+        new Date(first.lastMessageAt).getTime()
+      );
+    });
+  }, [activeCategory, activeTab, chats, searchQuery]);
+
+  const handleOpenChat = (chatId) => {
+    navigate(`/chats/${chatId}`);
+  };
+
+  const handleBack = () => {
+    navigate('/home');
+  };
+
+  const handleFloatingAction = (action) => {
+    setFloatingMenuOpen(false);
+
+    if (action === 'ai') {
+      navigate('/aarush-ai');
+      return;
+    }
+
+    if (action === 'secret') {
+      navigate('/stealth-privacy');
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('aarush:new-chat', {
+        detail: { type: action },
+      })
+    );
+  };
+
+  const removeSavedSearch = (value) => {
+    setSavedSearches((current) =>
+      current.filter((item) => item !== value)
+    );
   };
 
   return (
     <div style={styles.page}>
-      <div style={styles.topBar}>
-        <div style={styles.topInner}>
-          <button type="button" onClick={() => navigate('/home')} style={styles.iconBtn} aria-label="Back to home">
-            <ArrowLeft size={18} />
-          </button>
+      <TopBar
+        pageTitle="Chats"
+        onChatClick={() => navigate('/chats')}
+        onOneTapLock={() => navigate('/lock')}
+      />
 
-          <div style={styles.titleBlock}>
-            <h1 style={styles.title}>Chats</h1>
-            <p style={styles.subtitle}>
-              <LockKeyhole size={12} />
-              End-to-end ready messaging space
-            </p>
-          </div>
+      <header style={styles.pageHeader}>
+        <button
+          type="button"
+          onClick={handleBack}
+          style={styles.headerIconButton}
+          aria-label="Back to home"
+        >
+          <ArrowLeft size={18} />
+        </button>
 
-          <button type="button" style={styles.iconBtn} aria-label="New chat">
-            <MailPlus size={18} />
-          </button>
+        <div style={styles.headerTitle}>
+          <h1 style={styles.title}>Chats</h1>
+          <span style={styles.headerSubtitle}>
+            <Shield size={12} />
+            Private messaging space
+          </span>
         </div>
-      </div>
 
-      <div style={styles.layout}>
-        <aside style={{ ...styles.panel, ...styles.leftPanel }}>
-          <div style={styles.searchBox}>
-            <Search size={16} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search chats, users, groups, messages"
-              style={styles.searchInput}
-            />
+        <button
+          type="button"
+          onClick={() => setFloatingMenuOpen((value) => !value)}
+          style={styles.headerIconButton}
+          aria-label="New message"
+        >
+          <MessageSquarePlus size={18} />
+        </button>
+      </header>
+
+      <main style={styles.main}>
+        <section style={styles.heroCard}>
+          <div style={styles.heroIcon}>
+            <MessageCircle size={24} />
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.45rem',
-              padding: '0 0.9rem 0.9rem',
-            }}
-          >
-            <button type="button" onClick={() => setViewMode('list')} style={styles.toolBtn}>
-              <MessagesSquare size={14} /> Chats
-            </button>
-            <button type="button" onClick={() => setViewMode('calls')} style={styles.toolBtn}>
-              <Phone size={14} /> Calls
-            </button>
-            <button type="button" onClick={() => setViewMode('settings')} style={styles.toolBtn}>
-              <Settings2 size={14} /> Settings
-            </button>
-          </div>
+          <div style={styles.heroContent}>
+            <div style={styles.heroHeadingRow}>
+              <h2 style={styles.heroTitle}>Messages</h2>
 
-          <div style={styles.infoBanner}>
-            Modern chat list with pinned, archived, muted, unread, typing, online, and group conversation support.
-          </div>
+              <span style={styles.connectionBadge}>
+                <span style={styles.connectionDot} />
+                Connected
+              </span>
+            </div>
 
-          <div style={styles.list}>
-            {filteredChats.map((chat) => (
+            <p style={styles.heroSubtitle}>
+              Private, secure, and intelligent conversations across all your
+              devices.
+            </p>
+
+            <div style={styles.privacySignals}>
+              <span>
+                <Lock size={12} />
+                Privacy Shield
+              </span>
+
+              <span>
+                <CheckCheck size={12} />
+                Sync ready
+              </span>
+
+              <span>
+                <Sparkles size={12} />
+                AI available
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <SearchPanel
+          query={searchQuery}
+          onQueryChange={updateSearch}
+          searchHistory={searchHistory}
+          savedSearches={savedSearches}
+          onSelectSearch={updateSearch}
+          onClearHistory={() => setSearchHistory([])}
+          onRemoveSavedSearch={removeSavedSearch}
+        />
+
+        <section style={styles.tabsSection}>
+          <div style={styles.tabScroller}>
+            {CHAT_TABS.map((tab) => (
               <button
-                key={chat.id}
                 type="button"
-                onClick={() => {
-                  setActiveChatId(chat.id);
-                  setViewMode('conversation');
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  ...styles.tabButton,
+                  ...(activeTab === tab.key
+                    ? styles.activeTabButton
+                    : {}),
                 }}
-                style={styles.chatItem(activeChatId === chat.id)}
               >
-                <Avatar user={chat} />
+                {tab.label}
 
-                <div style={styles.itemText}>
-                  <div style={styles.itemTop}>
-                    <span style={styles.username}>{chat.username}</span>
-                    {chat.verified ? (
-                      <span
-                        style={{
-                          width: '1.05rem',
-                          height: '1.05rem',
-                          borderRadius: '999px',
-                          background: 'linear-gradient(135deg, #4dd7ff, #7c5cff)',
-                          color: '#fff',
-                          display: 'grid',
-                          placeItems: 'center',
-                          fontSize: '0.7rem',
-                          fontWeight: 900,
-                        }}
-                      >
-                        ✓
-                      </span>
-                    ) : null}
-                    {chat.isGroup ? (
-                      <span
-                        style={{
-                          padding: '0.2rem 0.45rem',
-                          borderRadius: '999px',
-                          background: 'rgba(124,92,255,0.16)',
-                          color: '#d9e2ff',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                        }}
-                      >
-                        Group
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div style={styles.metaLine}>
-                    {chat.typing ? 'Typing… ' : ''}
-                    {chat.lastMessage}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', justifyItems: 'end', gap: '0.35rem' }}>
-                  <span style={{ color: '#8ea0c2', fontSize: '0.75rem', fontWeight: 700 }}>{chat.lastMessageTime}</span>
-                  {chat.unreadCount ? <span style={styles.unreadBadge}>{chat.unreadCount}</span> : null}
-                  <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', color: '#8ea0c2' }}>
-                    {chat.pinned ? <Pin size={12} /> : null}
-                    {chat.archived ? <Archive size={12} /> : null}
-                    {chat.muted ? <VolumeX size={12} /> : null}
-                    {chat.online ? <Wifi size={12} /> : null}
-                  </div>
-                </div>
+                {tab.key === 'unread' &&
+                chats.reduce(
+                  (total, chat) => total + chat.unreadCount,
+                  0
+                ) > 0 ? (
+                  <span style={styles.tabCount}>
+                    {chats.reduce(
+                      (total, chat) => total + chat.unreadCount,
+                      0
+                    )}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
-        </aside>
+        </section>
 
-        <section style={{ ...styles.panel, ...styles.rightPanel }}>
-          <div style={styles.convoHeader}>
-            <div style={styles.convoInfo}>
-              <Avatar user={activeUser} />
-              <div style={styles.convoMeta}>
-                <div style={styles.convoTitle}>
-                  {activeUser.username}
-                  {activeUser.verified ? (
-                    <span
-                      style={{
-                        width: '1.05rem',
-                        height: '1.05rem',
-                        borderRadius: '999px',
-                        background: 'linear-gradient(135deg, #4dd7ff, #7c5cff)',
-                        color: '#fff',
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: '0.7rem',
-                        fontWeight: 900,
-                      }}
-                    >
-                      ✓
-                    </span>
-                  ) : null}
-                  {activeUser.isGroup ? (
-                    <span
-                      style={{
-                        padding: '0.22rem 0.45rem',
-                        borderRadius: '999px',
-                        background: 'rgba(124,92,255,0.16)',
-                        color: '#d9e2ff',
-                        fontSize: '0.68rem',
-                        fontWeight: 800,
-                      }}
-                    >
-                      Admin badge
-                    </span>
-                  ) : null}
-                </div>
-                <p style={styles.convoDesc}>
-                  {activeUser.isGroup
-                    ? 'Group conversation with member controls, media, files, polls, and events.'
-                    : '1:1 encrypted-ready chat with reactions, replies, and privacy controls.'}
-                </p>
-              </div>
-            </div>
+        <section style={styles.categorySection}>
+          <button
+            type="button"
+            onClick={() => setShowCategoryMenu((value) => !value)}
+            style={styles.categoryButton}
+          >
+            <span>
+              <Heart size={14} />
+              {activeCategory}
+            </span>
+            <ChevronDown size={15} />
+          </button>
 
-            <div style={styles.convoActions}>
-              {quickCalls.map((call) => (
-                <button key={call.label} type="button" style={styles.iconBtn} title={call.label} aria-label={call.label}>
-                  <call.icon size={16} />
+          {showCategoryMenu ? (
+            <div style={styles.categoryMenu}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory('All');
+                  setShowCategoryMenu(false);
+                }}
+                style={styles.categoryMenuItem}
+              >
+                All categories
+              </button>
+
+              {CHAT_CATEGORIES.map((category) => (
+                <button
+                  type="button"
+                  key={category}
+                  onClick={() => {
+                    setActiveCategory(category);
+                    setShowCategoryMenu(false);
+                  }}
+                  style={{
+                    ...styles.categoryMenuItem,
+                    ...(activeCategory === category
+                      ? styles.categoryMenuItemActive
+                      : {}),
+                  }}
+                >
+                  {category}
                 </button>
               ))}
             </div>
-          </div>
+          ) : null}
+        </section>
 
-          <div
-            style={{
-              padding: '0.8rem 0.9rem',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.45rem',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            <span
-              style={{
-                padding: '0.32rem 0.55rem',
-                borderRadius: '999px',
-                background: 'rgba(77,215,255,0.12)',
-                color: '#d8f7ff',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-              }}
-            >
-              <LockKeyhole size={12} /> E2E indicator
-            </span>
-            <span
-              style={{
-                padding: '0.32rem 0.55rem',
-                borderRadius: '999px',
-                background: 'rgba(255,255,255,0.06)',
-                color: '#dfe7fb',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-              }}
-            >
-              {activeUser.online ? 'Online' : 'Last seen 12m ago'}
-            </span>
-            {activeUser.typing ? (
-              <span
-                style={{
-                  padding: '0.32rem 0.55rem',
-                  borderRadius: '999px',
-                  background: 'rgba(124,92,255,0.16)',
-                  color: '#d9e2ff',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                }}
-              >
-                Typing indicator
+        <section style={styles.chatSection}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>Recent chats</h2>
+              <span style={styles.sectionMeta}>
+                {filteredChats.length} conversation
+                {filteredChats.length === 1 ? '' : 's'}
               </span>
-            ) : null}
-            <span
-              style={{
-                padding: '0.32rem 0.55rem',
-                borderRadius: '999px',
-                background: 'rgba(255,255,255,0.06)',
-                color: '#dfe7fb',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-              }}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/search')}
+              style={styles.smartSearchButton}
             >
-              Ghost mode placeholder
-            </span>
+              <Wand2 size={14} />
+              Smart search
+            </button>
           </div>
 
-          {viewMode === 'settings' ? (
-            <div style={{ padding: '0.9rem', overflowY: 'auto' }}>
-              <div style={{ display: 'grid', gap: '0.7rem' }}>
-                <SectionTitle icon={Settings2} title="Chat settings" />
-                <div style={{ display: 'grid', gap: '0.55rem' }}>
-                  {chatSettings.map((item) => (
-                    <button key={item.label} type="button" style={styles.menuItem}>
-                      <item.icon size={16} />
-                      <span style={{ flex: 1 }}>{item.label}</span>
-                      <ChevronRight size={15} />
-                    </button>
-                  ))}
-                </div>
-
-                <SectionTitle icon={Phone} title="Calls" />
-                <div style={{ display: 'grid', gap: '0.55rem' }}>
-                  {quickCalls.map((call) => (
-                    <button key={call.label} type="button" style={styles.menuItem}>
-                      <call.icon size={16} />
-                      <span style={{ flex: 1 }}>{call.label}</span>
-                      <ChevronRight size={15} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : viewMode === 'calls' ? (
-            <div style={{ padding: '0.9rem', overflowY: 'auto' }}>
-              <SectionTitle icon={Phone} title="Calls" />
-              <div style={{ display: 'grid', gap: '0.55rem' }}>
-                {quickCalls.map((call) => (
-                  <button key={call.label} type="button" style={styles.menuItem}>
-                    <call.icon size={16} />
-                    <span style={{ flex: 1 }}>{call.label}</span>
-                    <ChevronRight size={15} />
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ marginTop: '0.9rem' }}>
-                <SectionTitle icon={Users} title="Call placeholders" />
-                <div style={{ display: 'grid', gap: '0.55rem' }}>
-                  <button type="button" style={styles.menuItem}>
-                    <Speaker size={16} />
-                    <span style={{ flex: 1 }}>Speaker</span>
-                  </button>
-                  <button type="button" style={styles.menuItem}>
-                    <Mic size={16} />
-                    <span style={{ flex: 1 }}>Mute / unmute</span>
-                  </button>
-                  <button type="button" style={styles.menuItem}>
-                    <Camera size={16} />
-                    <span style={{ flex: 1 }}>Camera switch</span>
-                  </button>
-                </div>
-              </div>
+          {filteredChats.length > 0 ? (
+            <div style={styles.chatList}>
+              {filteredChats.map((chat) => (
+                <ChatRow
+                  key={chat.id}
+                  chat={chat}
+                  onOpen={() => handleOpenChat(chat.id)}
+                  onAction={(action) =>
+                    handleChatAction(chat.id, action)
+                  }
+                />
+              ))}
             </div>
           ) : (
-            <>
-              <div style={styles.convoBody}>
-                {messages.map((message) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    isMe={message.sender === 'me'}
-                    onOpenMenu={(msg) => setMenuMessage(msg)}
-                  />
-                ))}
-
-                {activeUser.typing ? (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      padding: '0.7rem 0.85rem',
-                      borderRadius: '999px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      width: 'fit-content',
-                      color: '#d9e2f4',
-                      fontSize: '0.84rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '0.55rem',
-                        height: '0.55rem',
-                        borderRadius: '999px',
-                        background: '#4dd7ff',
-                        boxShadow: '0 0 10px rgba(77,215,255,0.4)',
-                      }}
-                    />
-                    Typing…
-                  </div>
-                ) : null}
+            <div style={styles.emptyState}>
+              <div style={styles.emptyIllustration}>
+                <Mail size={28} />
+                <span style={styles.emptySparkle}>
+                  <Sparkles size={13} />
+                </span>
               </div>
 
-              <div style={styles.composer}>
-                <div style={styles.composerTools}>
-                  <button type="button" style={styles.toolBtn}>
-                    <Smile size={14} /> Emoji
-                  </button>
-                  <button type="button" style={styles.toolBtn}>
-                    <Sticker size={14} /> Sticker
-                  </button>
-                  <button type="button" style={styles.toolBtn}>
-                    <ImageIcon size={14} /> Image
-                  </button>
-                  <button type="button" style={styles.toolBtn}>
-                    <Video size={14} /> Video
-                  </button>
-                  <button type="button" style={styles.toolBtn}>
-                    <FileText size={14} /> File
-                  </button>
-                  <button type="button" style={styles.toolBtn}>
-                    <Mic size={14} /> Voice
-                  </button>
-                </div>
+              <h2 style={styles.emptyTitle}>No conversations yet</h2>
 
-                <div style={styles.composerRow}>
-                  <button type="button" style={styles.toolBtn} aria-label="Reply">
-                    <Reply size={14} /> Reply
-                  </button>
-                  <input type="text" placeholder="Message…" style={styles.composerInput} />
-                  <button type="button" style={styles.sendBtn} aria-label="Send message">
-                    <Send size={16} />
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </section>
-      </div>
+              <p style={styles.emptyText}>
+                Start a private conversation with someone from your Aarush
+                network.
+              </p>
 
-      {menuMessage ? (
-        <div
-          style={styles.menuOverlay}
-          onClick={() => setMenuMessage(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Message actions"
-        >
-          <div style={styles.menuPanel} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-              <div>
-                <strong style={{ fontSize: '0.95rem' }}>Message actions</strong>
-                <div style={{ color: '#92a0bf', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                  {menuMessage.text || menuMessage.fileSize || 'Selected message'}
-                </div>
-              </div>
-              <button type="button" onClick={() => setMenuMessage(null)} style={styles.iconBtn}>
-                <X size={18} />
+              <button
+                type="button"
+                onClick={() => handleFloatingAction('user')}
+                style={styles.startChatButton}
+              >
+                <Plus size={16} />
+                Start Chat
               </button>
             </div>
+          )}
+        </section>
 
-            <div style={styles.menuList}>
-              {menuActions.map((item) => (
-                <button key={item.label} type="button" style={styles.menuItem}>
-                  <item.icon size={16} />
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                </button>
-              ))}
+        <section style={styles.featurePanel}>
+          <div style={styles.panelHeading}>
+            <div>
+              <h2 style={styles.panelTitle}>AI Chat Suggestions</h2>
+              <p style={styles.panelSubtitle}>
+                Helpful shortcuts based on your recent interactions.
+              </p>
             </div>
+
+            <Bot size={20} color="#9e8cff" />
           </div>
-        </div>
+
+          <div style={styles.aiSuggestionGrid}>
+            <button
+              type="button"
+              style={styles.aiSuggestion}
+              onClick={() => navigate('/aarush-ai')}
+            >
+              <Sparkles size={15} />
+              Suggested contacts
+            </button>
+
+            <button
+              type="button"
+              style={styles.aiSuggestion}
+              onClick={() => navigate('/aarush-ai')}
+            >
+              <Wand2 size={15} />
+              Conversation prediction
+            </button>
+
+            <button
+              type="button"
+              style={styles.aiSuggestion}
+              onClick={() => navigate('/aarush-ai')}
+            >
+              <MessageCircle size={15} />
+              Recent AI interactions
+            </button>
+          </div>
+        </section>
+
+        <section style={styles.featurePanel}>
+          <div style={styles.panelHeading}>
+            <div>
+              <h2 style={styles.panelTitle}>Background Chat Systems</h2>
+              <p style={styles.panelSubtitle}>
+                Current status of Aarush messaging services.
+              </p>
+            </div>
+
+            <Settings2 size={19} color="#8ea0c4" />
+          </div>
+
+          <div style={styles.systemGrid}>
+            {BACKGROUND_SYSTEMS.map((system, index) => {
+              const state =
+                index === 1
+                  ? 'Syncing'
+                  : index >= 6
+                    ? 'Protected'
+                    : 'Active';
+
+              return (
+                <div key={system} style={styles.systemCard}>
+                  <span style={styles.systemName}>{system}</span>
+                  <span style={styles.systemState(state)}>
+                    {state}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section style={styles.featurePanel}>
+          <div style={styles.panelHeading}>
+            <div>
+              <h2 style={styles.panelTitle}>
+                Future Messaging Lab (Coming Soon)
+              </h2>
+              <p style={styles.panelSubtitle}>
+                Future-ready messaging capabilities for Aarush.
+              </p>
+            </div>
+
+            <Shield size={19} color="#8ea0c4" />
+          </div>
+
+          <div style={styles.futureGrid}>
+            {FUTURE_LAB.map((feature) => (
+              <div key={feature} style={styles.futureCard}>
+                <span>{feature}</span>
+                <small>Future ready</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      {floatingMenuOpen ? (
+        <FloatingActionMenu
+          onClose={() => setFloatingMenuOpen(false)}
+          onAction={handleFloatingAction}
+        />
       ) : null}
+
+      <button
+        type="button"
+        onClick={() => setFloatingMenuOpen((value) => !value)}
+        style={styles.floatingButton}
+        aria-label="New chat"
+      >
+        {floatingMenuOpen ? <X size={22} /> : <Plus size={22} />}
+      </button>
+
+      <BottomNav />
     </div>
   );
 }
 
-function SectionTitle({ icon: Icon, title }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-      <span
-        style={{
-          width: '2rem',
-          height: '2rem',
-          borderRadius: '999px',
-          background: 'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.14))',
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
-        <Icon size={14} />
-      </span>
-      <strong style={{ fontSize: '0.92rem' }}>{title}</strong>
-    </div>
-  );
-}
+const styles = {
+  page: {
+    minHeight: '100dvh',
+    paddingBottom: '6rem',
+    color: '#f4f7ff',
+    background:
+      'radial-gradient(circle at top, rgba(38,34,82,0.62) 0%, rgba(11,14,23,1) 42%, rgba(7,9,14,1) 100%)',
+  },
+
+  pageHeader: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 40,
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr auto',
+    alignItems: 'center',
+    gap: '0.7rem',
+    padding: '0.7rem 0.9rem',
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(7,10,16,0.92)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+  },
+
+  headerIconButton: {
+    width: '2.65rem',
+    height: '2.65rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '999px',
+    color: '#f4f7ff',
+    background: 'rgba(255,255,255,0.06)',
+    cursor: 'pointer',
+  },
+
+  headerTitle: {
+    minWidth: 0,
+    display: 'grid',
+    justifyItems: 'center',
+    gap: '0.15rem',
+  },
+
+  title: {
+    margin: 0,
+    color: '#f7f9ff',
+    fontSize: '1rem',
+    fontWeight: 900,
+  },
+
+  headerSubtitle: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    color: '#9aa8c1',
+    fontSize: '0.68rem',
+    fontWeight: 700,
+  },
+
+  main: {
+    width: '100%',
+    maxWidth: '760px',
+    margin: '0 auto',
+    padding: '0.85rem',
+    boxSizing: 'border-box',
+  },
+
+  heroCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.8rem',
+    padding: '1rem',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '1.35rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.08))',
+    boxShadow: '0 22px 55px rgba(0,0,0,0.24)',
+  },
+
+  heroIcon: {
+    width: '3.25rem',
+    height: '3.25rem',
+    flexShrink: 0,
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '1.1rem',
+    color: '#ffffff',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.45), rgba(77,215,255,0.22))',
+    boxShadow: '0 0 25px rgba(124,92,255,0.2)',
+  },
+
+  heroContent: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  heroHeadingRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+  },
+
+  heroTitle: {
+    margin: 0,
+    color: '#f7f9ff',
+    fontSize: '1.28rem',
+    fontWeight: 950,
+  },
+
+  heroSubtitle: {
+    margin: '0.42rem 0 0',
+    color: '#9ba8c0',
+    fontSize: '0.84rem',
+    lineHeight: 1.55,
+  },
+
+  connectionBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    padding: '0.3rem 0.5rem',
+    borderRadius: '999px',
+    color: '#c8f9e2',
+    background: 'rgba(61,242,168,0.1)',
+    fontSize: '0.62rem',
+    fontWeight: 850,
+    whiteSpace: 'nowrap',
+  },
+
+  connectionDot: {
+    width: '0.45rem',
+    height: '0.45rem',
+    borderRadius: '999px',
+    background: '#3df2a8',
+    boxShadow: '0 0 10px rgba(61,242,168,0.6)',
+  },
+
+  privacySignals: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.35rem',
+    marginTop: '0.7rem',
+  },
+
+  privacySignalsSpan: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+  },
+
+  searchSection: {
+    position: 'relative',
+    zIndex: 30,
+    marginTop: '0.85rem',
+  },
+
+  searchBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    minHeight: '2.9rem',
+    padding: '0.45rem 0.65rem 0.45rem 0.85rem',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '1rem',
+    background: 'rgba(255,255,255,0.06)',
+    boxShadow: '0 12px 30px rgba(0,0,0,0.15)',
+  },
+
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    border: 0,
+    outline: 0,
+    color: '#ffffff',
+    background: 'transparent',
+    fontSize: '0.84rem',
+  },
+
+  searchIconButton: {
+    width: '2rem',
+    height: '2rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    color: '#dce5f7',
+    background: 'rgba(255,255,255,0.06)',
+    cursor: 'pointer',
+  },
+
+  searchPanel: {
+    position: 'absolute',
+    top: 'calc(100% + 0.45rem)',
+    right: 0,
+    left: 0,
+    padding: '0.75rem',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '1.1rem',
+    background: 'rgba(15,19,31,0.98)',
+    boxShadow: '0 24px 60px rgba(0,0,0,0.42)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+  },
+
+  searchPanelHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    color: '#dce5f7',
+    fontSize: '0.75rem',
+    fontWeight: 850,
+  },
+
+  closeSearchButton: {
+    width: '1.8rem',
+    height: '1.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    color: '#dce5f7',
+    background: 'rgba(255,255,255,0.06)',
+    cursor: 'pointer',
+  },
+
+  suggestionList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.35rem',
+    marginTop: '0.65rem',
+  },
+
+  suggestionButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    padding: '0.42rem 0.55rem',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    color: '#dce5f7',
+    background: 'rgba(255,255,255,0.05)',
+    fontSize: '0.68rem',
+    cursor: 'pointer',
+  },
+
+  searchGroup: {
+    marginTop: '0.8rem',
+    paddingTop: '0.7rem',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+  },
+
+  searchGroupHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    color: '#96a4be',
+    fontSize: '0.68rem',
+    fontWeight: 800,
+  },
+
+  clearTextButton: {
+    border: 0,
+    color: '#8edfff',
+    background: 'transparent',
+    fontSize: '0.68rem',
+    cursor: 'pointer',
+  },
+
+  historyButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    width: '100%',
+    marginTop: '0.35rem',
+    padding: '0.45rem',
+    border: 0,
+    borderRadius: '0.6rem',
+    color: '#dce5f7',
+    background: 'rgba(255,255,255,0.04)',
+    textAlign: 'left',
+    fontSize: '0.72rem',
+    cursor: 'pointer',
+  },
+
+  savedSearchRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr auto',
+    gap: '0.3rem',
+    alignItems: 'center',
+  },
+
+  removeSavedButton: {
+    width: '1.8rem',
+    height: '1.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    color: '#aab7cf',
+    background: 'rgba(255,255,255,0.05)',
+    cursor: 'pointer',
+  },
+
+  tabsSection: {
+    marginTop: '0.8rem',
+  },
+
+  tabScroller: {
+    display: 'flex',
+    gap: '0.4rem',
+    overflowX: 'auto',
+    paddingBottom: '0.15rem',
+    scrollbarWidth: 'none',
+  },
+
+  tabButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    flexShrink: 0,
+    minHeight: '2rem',
+    padding: '0.45rem 0.7rem',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    color: '#aab6cc',
+    background: 'rgba(255,255,255,0.04)',
+    fontSize: '0.7rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  activeTabButton: {
+    color: '#ffffff',
+    borderColor: 'rgba(124,92,255,0.38)',
+    background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    boxShadow: '0 8px 18px rgba(124,92,255,0.18)',
+  },
+
+  tabCount: {
+    minWidth: '1.1rem',
+    padding: '0.12rem 0.28rem',
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: 'rgba(0,0,0,0.2)',
+    fontSize: '0.6rem',
+    textAlign: 'center',
+  },
+
+  categorySection: {
+    position: 'relative',
+    zIndex: 20,
+    marginTop: '0.65rem',
+  },
+
+  categoryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.55rem',
+    minWidth: '8.6rem',
+    padding: '0.48rem 0.65rem',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '0.75rem',
+    color: '#dce5f7',
+    background: 'rgba(255,255,255,0.05)',
+    fontSize: '0.72rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  categoryButtonSpan: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+  },
+
+  categoryMenu: {
+    position: 'absolute',
+    top: 'calc(100% + 0.4rem)',
+    left: 0,
+    display: 'grid',
+    width: 'min(14rem, 90vw)',
+    padding: '0.45rem',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '0.9rem',
+    background: 'rgba(15,19,31,0.98)',
+    boxShadow: '0 20px 55px rgba(0,0,0,0.4)',
+  },
+
+  categoryMenuItem: {
+    padding: '0.55rem 0.65rem',
+    border: 0,
+    borderRadius: '0.55rem',
+    color: '#c6d1e6',
+    background: 'transparent',
+    textAlign: 'left',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+  },
+
+  categoryMenuItemActive: {
+    color: '#ffffff',
+    background: 'rgba(124,92,255,0.2)',
+  },
+
+  chatSection: {
+    marginTop: '0.9rem',
+  },
+
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.65rem',
+    marginBottom: '0.55rem',
+  },
+
+  sectionTitle: {
+    margin: 0,
+    color: '#f4f7ff',
+    fontSize: '0.95rem',
+    fontWeight: 900,
+  },
+
+  sectionMeta: {
+    display: 'block',
+    marginTop: '0.18rem',
+    color: '#8e9cb6',
+    fontSize: '0.68rem',
+  },
+
+  smartSearchButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    padding: '0.42rem 0.55rem',
+    border: '1px solid rgba(124,92,255,0.24)',
+    borderRadius: '999px',
+    color: '#c9c0ff',
+    background: 'rgba(124,92,255,0.1)',
+    fontSize: '0.66rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  chatList: {
+    display: 'grid',
+    gap: '0.45rem',
+  },
+
+  chatRow: {
+    overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: '1rem',
+    background: 'rgba(255,255,255,0.045)',
+    transition:
+      'transform 180ms ease, border-color 180ms ease, background 180ms ease',
+  },
+
+  chatRowButton: {
+    display: 'grid',
+    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    alignItems: 'center',
+    gap: '0.7rem',
+    width: '100%',
+    padding: '0.65rem',
+    border: 0,
+    color: '#ffffff',
+    background: 'transparent',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+
+  avatarWrapper: {
+    position: 'relative',
+    width: '3rem',
+    height: '3rem',
+    flexShrink: 0,
+  },
+
+  avatar: {
+    width: '3rem',
+    height: '3rem',
+    display: 'block',
+    objectFit: 'cover',
+    borderRadius: '999px',
+    border: '2px solid rgba(124,92,255,0.4)',
+    background: '#1a2031',
+  },
+
+  onlineDot: {
+    position: 'absolute',
+    right: '-0.02rem',
+    bottom: '-0.02rem',
+    width: '0.72rem',
+    height: '0.72rem',
+    borderRadius: '999px',
+    border: '2px solid #101521',
+    background: '#3df2a8',
+    boxShadow: '0 0 10px rgba(61,242,168,0.55)',
+  },
+
+  lockedBadge: {
+    position: 'absolute',
+    top: '-0.18rem',
+    right: '-0.18rem',
+    width: '1.1rem',
+    height: '1.1rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '2px solid #111622',
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: '#7c5cff',
+  },
+
+  chatContent: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '0.15rem',
+  },
+
+  nameLine: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.32rem',
+    minWidth: 0,
+  },
+
+  displayName: {
+    overflow: 'hidden',
+    color: '#f5f8ff',
+    fontSize: '0.86rem',
+    fontWeight: 850,
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  verifiedBadge: {
+    width: '0.95rem',
+    height: '0.95rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: 'linear-gradient(135deg, #4dd7ff, #7c5cff)',
+    fontSize: '0.62rem',
+    fontWeight: 900,
+  },
+
+  groupBadge: {
+    padding: '0.16rem 0.35rem',
+    borderRadius: '999px',
+    color: '#d9e2ff',
+    background: 'rgba(124,92,255,0.16)',
+    fontSize: '0.58rem',
+    fontWeight: 850,
+  },
+
+  usernameLine: {
+    overflow: 'hidden',
+    color: '#8f9db8',
+    fontSize: '0.68rem',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  messagePreview: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    overflow: 'hidden',
+    fontSize: '0.73rem',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  chatMeta: {
+    display: 'grid',
+    justifyItems: 'end',
+    alignContent: 'center',
+    gap: '0.32rem',
+    minWidth: '2.5rem',
+  },
+
+  chatTime: {
+    color: '#91a0bc',
+    fontSize: '0.66rem',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+  },
+
+  unreadBadge: {
+    minWidth: '1.25rem',
+    height: '1.25rem',
+    display: 'grid',
+    placeItems: 'center',
+    padding: '0 0.25rem',
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    fontSize: '0.62rem',
+    fontWeight: 900,
+  },
+
+  rowIndicators: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    color: '#8492ae',
+  },
+
+  rowActions: {
+    display: 'flex',
+    gap: '0.28rem',
+    padding: '0 0.65rem 0.6rem',
+    overflowX: 'auto',
+  },
+
+  rowActionButton: {
+    width: '1.8rem',
+    height: '1.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    color: '#c8d4e9',
+    background: 'rgba(255,255,255,0.05)',
+    cursor: 'pointer',
+  },
+
+  rowActionButtonDanger: {
+    width: '1.8rem',
+    height: '1.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    border: '1px solid rgba(255,79,122,0.2)',
+    borderRadius: '999px',
+    color: '#ff9eb8',
+    background: 'rgba(255,79,122,0.08)',
+    cursor: 'pointer',
+  },
+
+  emptyState: {
+    display: 'grid',
+    justifyItems: 'center',
+    padding: '2.4rem 1rem',
+    border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: '1.2rem',
+    background: 'rgba(255,255,255,0.035)',
+    textAlign: 'center',
+  },
+
+  emptyIllustration: {
+    position: 'relative',
+    width: '4.3rem',
+    height: '4.3rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '1.4rem',
+    color: '#ffffff',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.36), rgba(77,215,255,0.18))',
+    boxShadow: '0 0 30px rgba(124,92,255,0.2)',
+  },
+
+  emptySparkle: {
+    position: 'absolute',
+    top: '-0.45rem',
+    right: '-0.45rem',
+    width: '1.45rem',
+    height: '1.45rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '2px solid #111622',
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: '#ff4fd8',
+  },
+
+  emptyTitle: {
+    margin: '0.85rem 0 0',
+    color: '#f5f8ff',
+    fontSize: '1rem',
+    fontWeight: 900,
+  },
+
+  emptyText: {
+    maxWidth: '24rem',
+    margin: '0.45rem 0 0',
+    color: '#9aa7bf',
+    fontSize: '0.8rem',
+    lineHeight: 1.55,
+  },
+
+  startChatButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    marginTop: '0.9rem',
+    padding: '0.62rem 0.85rem',
+    border: 0,
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    fontSize: '0.75rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  featurePanel: {
+    marginTop: '1rem',
+    padding: '0.9rem',
+    border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: '1.2rem',
+    background: 'rgba(255,255,255,0.04)',
+  },
+
+  panelHeading: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+  },
+
+  panelTitle: {
+    margin: 0,
+    color: '#f2f6ff',
+    fontSize: '0.92rem',
+    fontWeight: 900,
+  },
+
+  panelSubtitle: {
+    margin: '0.28rem 0 0',
+    color: '#8997b2',
+    fontSize: '0.72rem',
+    lineHeight: 1.45,
+  },
+
+  aiSuggestionGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '0.45rem',
+    marginTop: '0.75rem',
+  },
+
+  aiSuggestion: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    minHeight: '2.6rem',
+    padding: '0.55rem',
+    border: '1px solid rgba(124,92,255,0.18)',
+    borderRadius: '0.8rem',
+    color: '#d7d0ff',
+    background: 'rgba(124,92,255,0.08)',
+    fontSize: '0.7rem',
+    fontWeight: 750,
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+
+  systemGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: '0.45rem',
+    marginTop: '0.75rem',
+  },
+
+  systemCard: {
+    display: 'grid',
+    gap: '0.4rem',
+    minHeight: '3.8rem',
+    alignContent: 'space-between',
+    padding: '0.62rem',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: '0.85rem',
+    background: 'rgba(255,255,255,0.045)',
+  },
+
+  systemName: {
+    color: '#d6e0f1',
+    fontSize: '0.72rem',
+    lineHeight: 1.3,
+    fontWeight: 750,
+  },
+
+  systemState: (state) => ({
+    display: 'inline-flex',
+    width: 'fit-content',
+    padding: '0.23rem 0.42rem',
+    borderRadius: '999px',
+    color: '#ffffff',
+    background:
+      state === 'Active'
+        ? 'rgba(61,242,168,0.13)'
+        : state === 'Protected'
+          ? 'rgba(124,92,255,0.17)'
+          : state === 'Syncing'
+            ? 'rgba(77,215,255,0.14)'
+            : 'rgba(255,255,255,0.08)',
+    fontSize: '0.62rem',
+    fontWeight: 850,
+  }),
+
+  futureGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '0.45rem',
+    marginTop: '0.75rem',
+  },
+
+  futureCard: {
+    display: 'grid',
+    gap: '0.35rem',
+    minHeight: '3.6rem',
+    alignContent: 'space-between',
+    padding: '0.62rem',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: '0.85rem',
+    color: '#c4cee2',
+    background:
+      'linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.025))',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+  },
+
+  futureCardSmall: {
+    color: '#8b98b1',
+    fontSize: '0.62rem',
+    fontWeight: 700,
+  },
+
+  floatingButton: {
+    position: 'fixed',
+    right: '1rem',
+    bottom: '6.4rem',
+    zIndex: 60,
+    width: '3.5rem',
+    height: '3.5rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: '999px',
+    color: '#ffffff',
+    background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    boxShadow:
+      '0 16px 34px rgba(0,0,0,0.35), 0 0 24px rgba(124,92,255,0.28)',
+    cursor: 'pointer',
+  },
+
+  floatingMenu: {
+    position: 'fixed',
+    right: '1rem',
+    bottom: '10.35rem',
+    zIndex: 59,
+    display: 'grid',
+    gap: '0.4rem',
+    width: 'min(15rem, calc(100vw - 2rem))',
+    padding: '0.55rem',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '1rem',
+    background: 'rgba(15,19,31,0.98)',
+    boxShadow: '0 24px 65px rgba(0,0,0,0.48)',
+    backdropFilter: 'blur(18px)',
+    WebkitBackdropFilter: 'blur(18px)',
+  },
+
+  floatingMenuItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    width: '100%',
+    padding: '0.65rem',
+    border: 0,
+    borderRadius: '0.65rem',
+    color: '#eef3ff',
+    background: 'rgba(255,255,255,0.05)',
+    fontSize: '0.75rem',
+    fontWeight: 750,
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+
+  floatingMenuClose: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.35rem',
+    width: '100%',
+    padding: '0.55rem',
+    border: 0,
+    borderRadius: '0.65rem',
+    color: '#9eabc3',
+    background: 'transparent',
+    fontSize: '0.72rem',
+    cursor: 'pointer',
+  },
+};
