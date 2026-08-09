@@ -1,833 +1,982 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Bell,
+  BellRing,
   Check,
-  ChevronLeft,
-  ChevronRight,
+  CheckCheck,
+  ChevronDown,
   Clock3,
-  Focus,
-  Shield,
-  Sparkles,
+  FileText,
+  Heart,
+  LockKeyhole,
+  MessageCircle,
+  MoreHorizontal,
+  Play,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  UserPlus,
+  Users,
+  X,
 } from 'lucide-react';
 import TopBar from '../components/TopBar';
 import BottomNav from '../components/BottomNav';
-import NotificationCard from '../components/NotificationCard';
-import NotificationFilterChip from '../components/NotificationFilterChip';
-import useNotifications from '../hooks/useNotifications';
-import { categories, focusModes } from '../utils/notificationEngine';
 
-const backgroundSystems = [
-  ['Notification Engine', 'Active'],
-  ['Push Notification Service', 'Syncing'],
-  ['Privacy Filter Engine', 'Protected'],
-  ['AI Prioritization', 'Active'],
-  ['Notification Sync', 'Syncing'],
-  ['Lock Screen Protection', 'Protected'],
-  ['Focus Mode Engine', 'Active'],
-  ['Realtime Delivery', 'Syncing'],
-  ['Security Notification Service', 'Active'],
-  ['Device Token Manager', 'Active'],
-  ['Quiet Hours Scheduler', 'Active'],
-  ['Notification Analytics', 'Protected'],
+const CATEGORY_OPTIONS = [
+  'All',
+  'Messages',
+  'Stories',
+  'Reels',
+  'Posts',
+  'Mentions',
+  'Follows',
+  'Privacy',
+  'Security',
+  'System',
 ];
 
-export default function NotificationCenter() {
-  const navigate = useNavigate();
-  const {
-    state,
-    score,
-    level,
-    summary,
-    events,
-    toggleNested,
-    update,
-    markAllRead,
-    markRead,
-  } = useNotifications();
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 'notification-1',
+    category: 'Messages',
+    type: 'message',
+    username: '@aman.satwai',
+    displayName: 'Aman Satwai',
+    avatar: 'https://i.pravatar.cc/120?img=11',
+    message: 'sent you a new message.',
+    time: '2 min ago',
+    date: 'Today',
+    read: false,
+    action: 'Open Chat',
+  },
+  {
+    id: 'notification-2',
+    category: 'Messages',
+    type: 'voice',
+    username: '@creator.lab',
+    displayName: 'Creator Lab',
+    avatar: 'https://i.pravatar.cc/120?img=32',
+    message: 'sent you a voice message.',
+    time: '18 min ago',
+    date: 'Today',
+    read: false,
+    action: 'Listen',
+  },
+  {
+    id: 'notification-3',
+    category: 'Stories',
+    type: 'story-view',
+    username: '@neha.designs',
+    displayName: 'Neha Designs',
+    avatar: 'https://i.pravatar.cc/120?img=47',
+    message: 'viewed your story.',
+    time: '35 min ago',
+    date: 'Today',
+    read: true,
+    action: 'View Story',
+  },
+  {
+    id: 'notification-4',
+    category: 'Stories',
+    type: 'story-reaction',
+    username: '@rohan.builds',
+    displayName: 'Rohan Builds',
+    avatar: 'https://i.pravatar.cc/120?img=14',
+    message: 'reacted to your story.',
+    time: '1 hr ago',
+    date: 'Today',
+    read: true,
+    action: 'View Story',
+  },
+  {
+    id: 'notification-5',
+    category: 'Stories',
+    type: 'close-friends',
+    username: '@arush.dev',
+    displayName: 'Aarush',
+    avatar: 'https://i.pravatar.cc/120?img=12',
+    message: 'has a new Close Friends story.',
+    time: '2 hrs ago',
+    date: 'Today',
+    read: false,
+    action: 'View Story',
+  },
+  {
+    id: 'notification-6',
+    category: 'Reels',
+    type: 'reel-like',
+    username: '@mira.visuals',
+    displayName: 'Mira Visuals',
+    avatar: 'https://i.pravatar.cc/120?img=44',
+    message: 'liked your reel.',
+    time: '3 hrs ago',
+    date: 'Today',
+    read: true,
+    action: 'View Reel',
+  },
+  {
+    id: 'notification-7',
+    category: 'Posts',
+    type: 'comment',
+    username: '@sahil.codes',
+    displayName: 'Sahil Codes',
+    avatar: 'https://i.pravatar.cc/120?img=52',
+    message: 'commented on your post.',
+    time: 'Yesterday',
+    date: 'Yesterday',
+    read: false,
+    action: 'View Post',
+  },
+  {
+    id: 'notification-8',
+    category: 'Mentions',
+    type: 'mention',
+    username: '@priya.creates',
+    displayName: 'Priya Creates',
+    avatar: 'https://i.pravatar.cc/120?img=25',
+    message: 'mentioned you in a story.',
+    time: 'Yesterday',
+    date: 'Yesterday',
+    read: true,
+    action: 'Open Mention',
+  },
+  {
+    id: 'notification-9',
+    category: 'Follows',
+    type: 'follow',
+    username: '@dev.journal',
+    displayName: 'Dev Journal',
+    avatar: 'https://i.pravatar.cc/120?img=8',
+    message: 'started following you.',
+    time: 'Yesterday',
+    date: 'Yesterday',
+    read: false,
+    action: 'View Profile',
+  },
+  {
+    id: 'notification-10',
+    category: 'Privacy',
+    type: 'screenshot',
+    username: 'Aarush Privacy',
+    displayName: 'Privacy Monitor',
+    avatar: '',
+    message: 'detected a screenshot attempt.',
+    time: '2 days ago',
+    date: '2 days ago',
+    read: true,
+    action: 'Review',
+  },
+  {
+    id: 'notification-11',
+    category: 'Security',
+    type: 'login',
+    username: 'Aarush Security',
+    displayName: 'Security Center',
+    avatar: '',
+    message: 'detected a new login.',
+    time: '3 days ago',
+    date: '3 days ago',
+    read: false,
+    action: 'Review Activity',
+  },
+  {
+    id: 'notification-12',
+    category: 'System',
+    type: 'sync',
+    username: 'Aarush System',
+    displayName: 'Aarush System',
+    avatar: '',
+    message: 'completed synchronization.',
+    time: '4 days ago',
+    date: '4 days ago',
+    read: true,
+    action: 'View Details',
+  },
+];
 
-  const [activeFilter, setActiveFilter] = useState('All');
+function getNotificationIcon(notification) {
+  if (notification.category === 'Messages') {
+    return notification.type === 'voice'
+      ? BellRing
+      : MessageCircle;
+  }
+
+  if (notification.category === 'Stories') {
+    return Bell;
+  }
+
+  if (notification.category === 'Reels') {
+    return Play;
+  }
+
+  if (notification.category === 'Posts') {
+    return notification.type === 'comment'
+      ? MessageCircle
+      : Heart;
+  }
+
+  if (notification.category === 'Mentions') {
+    return Send;
+  }
+
+  if (notification.category === 'Follows') {
+    return UserPlus;
+  }
+
+  if (notification.category === 'Privacy') {
+    return ShieldCheck;
+  }
+
+  if (notification.category === 'Security') {
+    return LockKeyhole;
+  }
+
+  return RefreshCw;
+}
+
+function getCategoryIcon(category) {
+  const icons = {
+    All: Bell,
+    Messages: MessageCircle,
+    Stories: Bell,
+    Reels: Play,
+    Posts: Heart,
+    Mentions: Send,
+    Follows: UserPlus,
+    Privacy: ShieldCheck,
+    Security: LockKeyhole,
+    System: RefreshCw,
+  };
+
+  return icons[category] || Bell;
+}
+
+function NotificationAvatar({ notification }) {
+  if (notification.avatar) {
+    return (
+      <img
+        src={notification.avatar}
+        alt={`${notification.displayName} avatar`}
+        style={styles.avatar}
+      />
+    );
+  }
+
+  return (
+    <span style={styles.systemAvatar}>
+      <ShieldCheck size={18} />
+    </span>
+  );
+}
+
+export default function NotificationCenter() {
+  const [notifications, setNotifications] = useState(
+    INITIAL_NOTIFICATIONS
+  );
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [message, setMessage] = useState('');
 
-  const filteredEvents = useMemo(() => {
-    if (activeFilter === 'All') {
-      return events;
+  const unreadCount = notifications.filter(
+    (notification) => !notification.read
+  ).length;
+
+  const filteredNotifications = useMemo(() => {
+    if (activeCategory === 'All') {
+      return notifications;
     }
 
-    if (activeFilter === 'Unread') {
-      return events.filter((item) => item.unread);
+    return notifications.filter(
+      (notification) =>
+        notification.category === activeCategory
+    );
+  }, [activeCategory, notifications]);
+
+  const markAsRead = (id) => {
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === id
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  };
+
+  const markAllAsRead = () => {
+    setNotifications((current) =>
+      current.map((notification) => ({
+        ...notification,
+        read: true,
+      }))
+    );
+    setMessage('All notifications marked as read.');
+  };
+
+  const deleteNotification = (id) => {
+    setNotifications((current) =>
+      current.filter((notification) => notification.id !== id)
+    );
+  };
+
+  const clearCategory = () => {
+    if (activeCategory === 'All') {
+      setNotifications([]);
+      setMessage('All notifications cleared.');
+      return;
     }
 
-    if (activeFilter === 'High Priority') {
-      return events.filter((item) => item.priority === 'High');
-    }
+    setNotifications((current) =>
+      current.filter(
+        (notification) =>
+          notification.category !== activeCategory
+      )
+    );
 
-    return events.filter((item) => item.category === activeFilter);
-  }, [activeFilter, events]);
+    setMessage(`${activeCategory} notifications cleared.`);
+  };
 
-  const showMessage = (text) => {
-    setMessage(text);
-    window.setTimeout(() => setMessage(''), 3200);
+  const clearAll = () => {
+    setNotifications([]);
+    setMenuOpen(false);
+    setMessage('All notifications cleared.');
+  };
+
+  const openNotification = (notification) => {
+    markAsRead(notification.id);
+    setMessage(`${notification.action} selected.`);
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        paddingBottom: '7rem',
-        background:
-          'radial-gradient(circle at top, rgba(34,43,68,0.52), rgba(7,9,14,1) 62%)',
-        color: '#f4f7ff',
-      }}
-    >
+    <div style={styles.page}>
       <TopBar
         pageTitle="Notifications"
-        notificationCount={events.filter((item) => item.unread).length}
-        onChatClick={() => navigate('/chats')}
-        onOneTapLock={() => navigate('/lock')}
+        notificationCount={unreadCount}
+        showBackButton
       />
 
-      <main
-        style={{
-          width: '100%',
-          maxWidth: '760px',
-          margin: '0 auto',
-          padding: '0.9rem',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            marginBottom: '0.8rem',
-            padding: '0.35rem 0.55rem',
-            border: 0,
-            borderRadius: '999px',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#aebbd5',
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronLeft size={15} />
-          Back
-        </button>
+      <main style={styles.content}>
+        <section style={styles.heroCard}>
+          <span style={styles.heroIcon}>
+            <Bell size={22} />
+          </span>
 
-        <section
-          style={{
-            padding: '1.2rem',
-            borderRadius: '1.45rem',
-            background:
-              'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.1))',
-            border: '1px solid rgba(124,92,255,0.24)',
-          }}
-        >
-          <Bell size={29} color="#9be8ff" />
-
-          <h1
-            style={{
-              margin: '0.7rem 0 0',
-              fontSize: '1.35rem',
-              fontWeight: 900,
-            }}
-          >
-            Smart Notifications &amp; Privacy
-          </h1>
-
-          <p
-            style={{
-              margin: '0.4rem 0 0',
-              color: '#c1cce2',
-              fontSize: '0.78rem',
-              lineHeight: 1.5,
-            }}
-          >
-            Control, protect, and intelligently organize every notification
-            across your devices.
-          </p>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              marginTop: '1rem',
-              paddingTop: '0.9rem',
-              borderTop: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            <div
-              style={{
-                width: '5.8rem',
-                height: '5.8rem',
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: '999px',
-                background: `conic-gradient(#61e8b4 ${score * 3.6}deg, rgba(255,255,255,0.1) 0deg)`,
-              }}
-            >
-              <div
-                style={{
-                  width: '4.8rem',
-                  height: '4.8rem',
-                  display: 'grid',
-                  placeItems: 'center',
-                  alignContent: 'center',
-                  borderRadius: '999px',
-                  background: '#111827',
-                }}
-              >
-                <strong style={{ fontSize: '1.1rem' }}>{score}</strong>
-                <span style={{ color: '#91a0bd', fontSize: '0.58rem' }}>
-                  / 100
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <strong
-                style={{
-                  display: 'block',
-                  color: '#83edc1',
-                  fontSize: '0.8rem',
-                }}
-              >
-                {level}
-              </strong>
-
-              <span
-                style={{
-                  display: 'block',
-                  marginTop: '0.3rem',
-                  color: '#aab7d0',
-                  fontSize: '0.68rem',
-                  lineHeight: 1.45,
-                }}
-              >
-                Privacy redaction and notification organization are active.
-              </span>
-            </div>
+          <div style={styles.heroCopy}>
+            <h1 style={styles.title}>Notification Center</h1>
+            <p style={styles.subtitle}>
+              Stay updated with messages, stories, security, and
+              activity across Aarush.
+            </p>
           </div>
-        </section>
 
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Instant Notification Actions
-          </h2>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '0.5rem',
-              marginTop: '0.7rem',
-            }}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-label="Notification actions"
+            style={styles.moreButton}
           >
-            {[
-              ['Mark All Read', Check, markAllRead],
-              ['Enable Privacy Mode', Shield, () => update({ privacyMode: true })],
-              ['Hide Sensitive Notifications', Bell, () => toggleNested('privacy', 'hideMessageContent')],
-              ['AI Notification Summary', Sparkles, () => showMessage('AI summary generated.')],
-              ['Focus Mode', Focus, () => update({ focusMode: 'Work' })],
-              ['Notification Settings', Bell, () => navigate('/notification-privacy')],
-            ].map(([title, Icon, action]) => (
+            <MoreHorizontal size={19} />
+          </button>
+
+          {menuOpen ? (
+            <div style={styles.actionsMenu}>
               <button
-                key={title}
                 type="button"
                 onClick={() => {
-                  action();
-                  showMessage(`${title} applied.`);
+                  markAllAsRead();
+                  setMenuOpen(false);
                 }}
-                style={{
-                  minHeight: '4.3rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.65rem',
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  borderRadius: '0.9rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  color: '#dce5f8',
-                  fontSize: '0.66rem',
-                  fontWeight: 800,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
+                style={styles.menuButton}
               >
-                <Icon size={16} color="#b8aaff" />
-                {title}
+                <CheckCheck size={15} />
+                Mark all as read
               </button>
-            ))}
-          </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearCategory();
+                  setMenuOpen(false);
+                }}
+                style={styles.menuButton}
+              >
+                <X size={15} />
+                Clear category
+              </button>
+
+              <button
+                type="button"
+                onClick={clearAll}
+                style={styles.menuButton}
+              >
+                <X size={15} />
+                Clear all notifications
+              </button>
+            </div>
+          ) : null}
         </section>
 
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Aarush AI Notification Summary
-          </h2>
+        <section style={styles.filterCard}>
+          <div style={styles.filterScroller}>
+            {CATEGORY_OPTIONS.map((category) => {
+              const Icon = getCategoryIcon(category);
+              const active = activeCategory === category;
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-              gap: '0.5rem',
-              marginTop: '0.7rem',
-            }}
-          >
-            {[
-              ['New messages', summary.messages],
-              ['Mentions', summary.mentions],
-              ['Security alerts', summary.securityAlerts],
-              ['Memory reminders', summary.memoryReminders],
-              ['Workspace updates', summary.workspaceUpdates],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                style={{
-                  padding: '0.7rem',
-                  borderRadius: '0.85rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <span style={{ color: '#8997b3', fontSize: '0.61rem' }}>
-                  {label}
-                </span>
-                <strong
-                  style={{
-                    display: 'block',
-                    marginTop: '0.3rem',
-                    color: '#edf2ff',
-                    fontSize: '1rem',
-                  }}
-                >
-                  {value}
-                </strong>
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.45rem',
-              marginTop: '0.7rem',
-            }}
-          >
-            {['Read Summary', 'Open Important', 'Ignore Low Priority', 'Customize AI'].map(
-              (label) => (
+              return (
                 <button
-                  key={label}
+                  key={category}
                   type="button"
-                  onClick={() => showMessage(`${label} is ready for AI notification integration.`)}
+                  onClick={() => setActiveCategory(category)}
                   style={{
-                    minHeight: '2.4rem',
-                    flex: 1,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '999px',
-                    background: 'rgba(255,255,255,0.04)',
-                    color: '#dce5f8',
-                    fontSize: '0.56rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
+                    ...styles.filterButton,
+                    ...(active
+                      ? styles.activeFilterButton
+                      : {}),
                   }}
                 >
-                  {label}
+                  <Icon size={14} />
+                  {category}
                 </button>
-              )
-            )}
+              );
+            })}
           </div>
         </section>
 
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Notification Categories
-          </h2>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
-              gap: '0.45rem',
-              marginTop: '0.7rem',
-            }}
-          >
-            {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => showMessage(`${category} channel settings are ready.`)}
-                style={{
-                  minHeight: '2.6rem',
-                  padding: '0.55rem',
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  borderRadius: '0.8rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  color: '#dce5f8',
-                  fontSize: '0.62rem',
-                  fontWeight: 800,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                {category}
-                <span
-                  style={{
-                    display: 'block',
-                    marginTop: '0.2rem',
-                    color: '#83e9c1',
-                    fontSize: '0.55rem',
-                  }}
-                >
-                  Enabled · Priority configurable
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Smart Filters
-          </h2>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.4rem',
-              overflowX: 'auto',
-              marginTop: '0.7rem',
-              paddingBottom: '0.2rem',
-            }}
-          >
-            {[
-              'All',
-              'Unread',
-              'Today',
-              'Yesterday',
-              'Mentions',
-              'Direct Messages',
-              'Groups',
-              'Security',
-              'AI',
-              'Workspace',
-              'High Priority',
-              'Hidden',
-              'Archived',
-              'Silent',
-            ].map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setActiveFilter(filter)}
-                style={{
-                  flexShrink: 0,
-                  minHeight: '2.2rem',
-                  padding: '0 0.65rem',
-                  border: activeFilter === filter
-                    ? '1px solid rgba(124,92,255,0.35)'
-                    : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '999px',
-                  background: activeFilter === filter
-                    ? 'linear-gradient(135deg, rgba(124,92,255,0.25), rgba(77,215,255,0.12))'
-                    : 'rgba(255,255,255,0.04)',
-                  color: activeFilter === filter ? '#fff' : '#aebbd5',
-                  fontSize: '0.62rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.75rem' }}>
-            {filteredEvents.map((notification) => (
+        {filteredNotifications.length === 0 ? (
+          <EmptyState
+            category={activeCategory}
+            onReset={() => setActiveCategory('All')}
+          />
+        ) : (
+          <section style={styles.notificationList}>
+            {filteredNotifications.map((notification) => (
               <NotificationCard
                 key={notification.id}
                 notification={notification}
-                onRead={markRead}
-                onOpen={() => showMessage('Notification opened.')}
+                onOpen={openNotification}
+                onMarkRead={markAsRead}
+                onDelete={deleteNotification}
               />
             ))}
-          </div>
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Focus Modes
-          </h2>
-
-          <select
-            value={state.focusMode}
-            onChange={(event) => update({ focusMode: event.target.value })}
-            style={{
-              width: '100%',
-              minHeight: '2.7rem',
-              marginTop: '0.7rem',
-              padding: '0 0.7rem',
-              borderRadius: '0.8rem',
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: '#151b2b',
-              color: '#edf3ff',
-            }}
-          >
-            {focusModes.map((mode) => (
-              <option key={mode}>{mode}</option>
-            ))}
-          </select>
-
-          <p
-            style={{
-              margin: '0.55rem 0 0',
-              color: '#8997b3',
-              fontSize: '0.67rem',
-              lineHeight: 1.45,
-            }}
-          >
-            Each focus mode can later configure allowed contacts, groups,
-            apps, sound, vibration, banner behavior, and AI auto-activation.
-          </p>
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Notification Scheduling
-          </h2>
-
-          {[
-            ['quietHours', 'Quiet Hours'],
-            ['sleepSchedule', 'Sleep Schedule'],
-            ['workSchedule', 'Work Schedule'],
-            ['weekendSchedule', 'Weekend Schedule'],
-            ['timeBasedDelivery', 'Time-Based Delivery'],
-            ['batchDelivery', 'Batch Delivery'],
-            ['hourlyDigest', 'Hourly Digest'],
-            ['dailyDigest', 'Daily Digest'],
-            ['aiSmartTiming', 'AI Smart Timing'],
-          ].map(([id, title]) => (
-            <div
-              key={id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                minHeight: '2.5rem',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                color: '#dce5f8',
-                fontSize: '0.68rem',
-              }}
-            >
-              <Clock3 size={14} color="#aebcda" />
-              <span style={{ flex: 1 }}>{title}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={state.scheduling[id]}
-                onClick={() => toggleNested('scheduling', id)}
-                style={{
-                  width: '2.35rem',
-                  height: '1.3rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: state.scheduling[id]
-                    ? 'flex-end'
-                    : 'flex-start',
-                  padding: '0.13rem',
-                  border: 0,
-                  borderRadius: '999px',
-                  background: state.scheduling[id]
-                    ? 'linear-gradient(135deg, #7c5cff, #4dd7ff)'
-                    : 'rgba(255,255,255,0.12)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  style={{
-                    width: '1rem',
-                    height: '1rem',
-                    borderRadius: '999px',
-                    background: '#fff',
-                  }}
-                />
-              </button>
-            </div>
-          ))}
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Notification Synchronization
-          </h2>
-
-          <p
-            style={{
-              margin: '0.35rem 0 0.7rem',
-              color: '#8997b3',
-              fontSize: '0.68rem',
-              lineHeight: 1.45,
-            }}
-          >
-            Cross-device synchronization is prepared for phones, tablets,
-            desktops, web sessions, and wearables.
-          </p>
-
-          {[
-            ['Last sync', 'Today, 10:42 AM'],
-            ['Device count', '4 connected devices'],
-            ['Duplicate prevention', 'Active'],
-            ['Read sync status', 'Syncing'],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '0.6rem 0',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                color: '#cbd6ea',
-                fontSize: '0.68rem',
-              }}
-            >
-              <span>{label}</span>
-              <strong style={{ color: '#edf2ff' }}>{value}</strong>
-            </div>
-          ))}
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Security Notifications
-          </h2>
-
-          {[
-            'New Login',
-            'New Device',
-            'Password Change',
-            'Two-Factor Events',
-            'Screenshot Detection',
-            'Screen Recording Detection',
-            'Emergency Privacy Activation',
-            'Session Revocation',
-            'Vault Access',
-            'AI Threat Detection',
-          ].map((item) => (
-            <div
-              key={item}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                minHeight: '2.5rem',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                color: '#dce5f8',
-                fontSize: '0.68rem',
-              }}
-            >
-              <Shield size={14} color="#aebcda" />
-              <span style={{ flex: 1 }}>{item}</span>
-              <span style={{ color: '#83e9c1', fontSize: '0.58rem' }}>
-                Always deliver
-              </span>
-            </div>
-          ))}
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Background Notification Systems
-          </h2>
-
-          {backgroundSystems.map(([item, status]) => (
-            <div
-              key={item}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                minHeight: '2.5rem',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                color: '#dce5f8',
-                fontSize: '0.68rem',
-              }}
-            >
-              <RefreshCw size={14} color="#a9b8d6" />
-              <span style={{ flex: 1 }}>{item}</span>
-              <span
-                style={{
-                  color:
-                    status === 'Protected'
-                      ? '#8edfff'
-                      : status === 'Syncing'
-                        ? '#c8b8ff'
-                        : '#83e9c1',
-                  fontSize: '0.58rem',
-                }}
-              >
-                {status}
-              </span>
-            </div>
-          ))}
-        </section>
-
-        <section
-          style={{
-            marginTop: '0.9rem',
-            padding: '1rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.88)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '0.98rem' }}>
-            Future Aarush Notification AI (Coming Soon)
-          </h2>
-
-          {[
-            'Predictive Notification Timing',
-            'AI Attention Detection',
-            'Emotional Notification Filtering',
-            'Context-Aware Delivery',
-            'Autonomous Focus Mode',
-            'Intelligent Notification Compression',
-            'Cross-App Privacy Shield',
-            'Universal Notification Assistant',
-          ].map((item) => (
-            <div
-              key={item}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                minHeight: '2.7rem',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                color: '#dce5f8',
-                fontSize: '0.68rem',
-                opacity: 0.68,
-              }}
-            >
-              <Sparkles size={14} color="#b8aaff" />
-              <span style={{ flex: 1 }}>{item}</span>
-              <span style={{ color: '#9aa7c1', fontSize: '0.56rem' }}>
-                Coming soon
-              </span>
-            </div>
-          ))}
-        </section>
+          </section>
+        )}
 
         {message ? (
-          <div
-            role="status"
-            style={{
-              position: 'fixed',
-              right: '1rem',
-              bottom: '5.7rem',
-              left: '1rem',
-              zIndex: 1100,
-              maxWidth: '520px',
-              margin: '0 auto',
-              padding: '0.75rem 0.9rem',
-              borderRadius: '0.9rem',
-              background: 'rgba(22,28,45,0.96)',
-              border: '1px solid rgba(124,92,255,0.25)',
-              color: '#dce6fa',
-              fontSize: '0.74rem',
-              textAlign: 'center',
-            }}
-          >
+          <div role="status" style={styles.toast}>
             {message}
+
+            <button
+              type="button"
+              onClick={() => setMessage('')}
+              style={styles.dismissButton}
+              aria-label="Dismiss message"
+            >
+              <X size={14} />
+            </button>
           </div>
         ) : null}
       </main>
 
-      <BottomNav />
-
-      <style>{`
-        button {
-          -webkit-tap-highlight-color: transparent;
-          transition: transform 180ms ease, filter 180ms ease;
-        }
-
-        button:not(:disabled):hover {
-          transform: translateY(-1px);
-          filter: brightness(1.08);
-        }
-      `}</style>
+      <BottomNav notificationCount={unreadCount} />
     </div>
   );
 }
+
+function NotificationCard({
+  notification,
+  onOpen,
+  onMarkRead,
+  onDelete,
+}) {
+  const Icon = getNotificationIcon(notification);
+
+  return (
+    <article
+      style={{
+        ...styles.notificationCard,
+        ...(notification.read
+          ? styles.readNotification
+          : styles.unreadNotification),
+      }}
+    >
+      <NotificationAvatar notification={notification} />
+
+      <div style={styles.notificationBody}>
+        <div style={styles.notificationTopLine}>
+          <div style={styles.identity}>
+            <strong>{notification.username}</strong>
+            {!notification.read ? (
+              <span
+                aria-label="Unread notification"
+                style={styles.unreadDot}
+              />
+            ) : null}
+          </div>
+
+          <span style={styles.categoryIcon}>
+            <Icon size={14} />
+          </span>
+        </div>
+
+        <p style={styles.notificationMessage}>
+          {notification.message}
+        </p>
+
+        <div style={styles.metaRow}>
+          <span style={styles.time}>
+            <Clock3 size={12} />
+            {notification.time}
+          </span>
+
+          <span style={styles.date}>
+            {notification.date}
+          </span>
+        </div>
+
+        <div style={styles.cardActions}>
+          {notification.action ? (
+            <button
+              type="button"
+              onClick={() => onOpen(notification)}
+              style={styles.primaryAction}
+            >
+              {notification.action}
+            </button>
+          ) : null}
+
+          {!notification.read ? (
+            <button
+              type="button"
+              onClick={() => onMarkRead(notification.id)}
+              style={styles.secondaryAction}
+            >
+              Mark as read
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => onDelete(notification.id)}
+            aria-label="Delete notification"
+            style={styles.deleteAction}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function EmptyState({ category, onReset }) {
+  return (
+    <section style={styles.emptyState}>
+      <span style={styles.emptyIcon}>
+        <Bell size={25} />
+      </span>
+
+      <h2 style={styles.emptyTitle}>
+        No {category === 'All' ? '' : `${category} `}notifications
+      </h2>
+
+      <p style={styles.emptyText}>
+        You’re all caught up. New activity will appear here.
+      </p>
+
+      {category !== 'All' ? (
+        <button
+          type="button"
+          onClick={onReset}
+          style={styles.primaryAction}
+        >
+          View all notifications
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    paddingBottom: '6.8rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  content: {
+    position: 'relative',
+    width: '100%',
+    maxWidth: '820px',
+    margin: '0 auto',
+    padding: '1rem 0.9rem',
+    display: 'grid',
+    gap: '0.8rem',
+  },
+
+  heroCard: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 18px 50px rgba(0,0,0,0.25)',
+  },
+
+  heroIcon: {
+    width: '2.8rem',
+    height: '2.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.9rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.28), rgba(77,215,255,0.14))',
+    color: '#dce8ff',
+  },
+
+  heroCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  title: {
+    margin: 0,
+    color: '#f5f8ff',
+    fontSize: '1.05rem',
+    fontWeight: 850,
+  },
+
+  subtitle: {
+    margin: '0.28rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.73rem',
+    lineHeight: 1.5,
+  },
+
+  moreButton: {
+    width: '2.45rem',
+    height: '2.45rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '999px',
+    border: '1px solid rgba(255,255,255,0.09)',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#dce5f8',
+    cursor: 'pointer',
+  },
+
+  actionsMenu: {
+    position: 'absolute',
+    top: '4.3rem',
+    right: '0.8rem',
+    zIndex: 5,
+    width: 'min(250px, calc(100% - 1.6rem))',
+    padding: '0.4rem',
+    borderRadius: '0.95rem',
+    background: 'rgba(18,23,37,0.98)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 18px 45px rgba(0,0,0,0.42)',
+    backdropFilter: 'blur(18px)',
+    WebkitBackdropFilter: 'blur(18px)',
+  },
+
+  menuButton: {
+    width: '100%',
+    minHeight: '2.35rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    padding: '0.55rem 0.65rem',
+    border: 0,
+    borderRadius: '0.65rem',
+    background: 'transparent',
+    color: '#dce5f8',
+    textAlign: 'left',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+    cursor: 'pointer',
+  },
+
+  filterCard: {
+    padding: '0.45rem',
+    borderRadius: '1rem',
+    background: 'rgba(15,19,30,0.82)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+
+  filterScroller: {
+    display: 'flex',
+    gap: '0.4rem',
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
+  },
+
+  filterButton: {
+    minHeight: '2.25rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.3rem',
+    flexShrink: 0,
+    padding: '0 0.7rem',
+    border: '1px solid transparent',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.04)',
+    color: '#96a3bf',
+    fontSize: '0.68rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  activeFilterButton: {
+    borderColor: 'rgba(124,92,255,0.34)',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.25), rgba(77,215,255,0.12))',
+    color: '#fff',
+  },
+
+  notificationList: {
+    display: 'grid',
+    gap: '0.6rem',
+  },
+
+  notificationCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.7rem',
+    padding: '0.8rem',
+    borderRadius: '1.05rem',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 14px 34px rgba(0,0,0,0.2)',
+    transition:
+      'transform 180ms ease, border-color 180ms ease, background 180ms ease',
+  },
+
+  unreadNotification: {
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.14), rgba(15,19,30,0.94))',
+    borderColor: 'rgba(124,92,255,0.25)',
+  },
+
+  readNotification: {
+    background: 'rgba(15,19,30,0.86)',
+  },
+
+  avatar: {
+    width: '2.7rem',
+    height: '2.7rem',
+    objectFit: 'cover',
+    flexShrink: 0,
+    borderRadius: '999px',
+    border: '2px solid rgba(124,92,255,0.35)',
+  },
+
+  systemAvatar: {
+    width: '2.7rem',
+    height: '2.7rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+  },
+
+  notificationBody: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  notificationTopLine: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
+  },
+
+  identity: {
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+  },
+
+  identityStrong: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  unreadDot: {
+    width: '0.42rem',
+    height: '0.42rem',
+    flexShrink: 0,
+    borderRadius: '999px',
+    background: '#4dd7ff',
+    boxShadow: '0 0 10px rgba(77,215,255,0.7)',
+  },
+
+  categoryIcon: {
+    width: '1.8rem',
+    height: '1.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.6rem',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#9daaf0',
+  },
+
+  notificationMessage: {
+    margin: '0.3rem 0 0',
+    color: '#d8e2f5',
+    fontSize: '0.76rem',
+    lineHeight: 1.4,
+  },
+
+  metaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    marginTop: '0.35rem',
+    color: '#8290ad',
+    fontSize: '0.64rem',
+  },
+
+  time: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.2rem',
+  },
+
+  date: {
+    color: '#71809e',
+  },
+
+  cardActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    marginTop: '0.6rem',
+  },
+
+  primaryAction: {
+    minHeight: '2rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 0.65rem',
+    border: 0,
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    fontSize: '0.64rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  secondaryAction: {
+    minHeight: '2rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 0.6rem',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#cbd6ec',
+    fontSize: '0.64rem',
+    fontWeight: 750,
+    cursor: 'pointer',
+  },
+
+  deleteAction: {
+    width: '2rem',
+    height: '2rem',
+    display: 'grid',
+    placeItems: 'center',
+    marginLeft: 'auto',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    background: 'transparent',
+    color: '#8290ad',
+    cursor: 'pointer',
+  },
+
+  emptyState: {
+    display: 'grid',
+    justifyItems: 'center',
+    padding: '3.2rem 1.2rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(15,19,30,0.9)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    textAlign: 'center',
+  },
+
+  emptyIcon: {
+    width: '4.2rem',
+    height: '4.2rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.12))',
+    color: '#dce8ff',
+  },
+
+  emptyTitle: {
+    margin: '0.9rem 0 0',
+    color: '#f5f8ff',
+    fontSize: '1rem',
+    fontWeight: 850,
+  },
+
+  emptyText: {
+    margin: '0.4rem 0 1rem',
+    color: '#96a3bf',
+    fontSize: '0.76rem',
+  },
+
+  toast: {
+    position: 'fixed',
+    right: '1rem',
+    bottom: '6.2rem',
+    left: '1rem',
+    zIndex: 1100,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+    width: 'fit-content',
+    maxWidth: 'calc(100% - 2rem)',
+    margin: '0 auto',
+    padding: '0.7rem 0.85rem',
+    borderRadius: '999px',
+    background: 'rgba(17,22,35,0.96)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
+    color: '#eaf0ff',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+  },
+
+  dismissButton: {
+    width: '1.6rem',
+    height: '1.6rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#aab6cf',
+    cursor: 'pointer',
+  },
+};

@@ -1,561 +1,221 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import TopBar from '../components/TopBar';
-import BottomNav from '../components/BottomNav';
 import {
-  Activity,
-  AlertTriangle,
-  ArrowLeft,
-  Ban,
+  Archive,
   Bell,
-  Check,
-  ChevronDown,
+  Camera,
   ChevronRight,
-  Clock3,
+  CircleUserRound,
+  CloudDownload,
   Eye,
   EyeOff,
+  FileDown,
+  Filter,
+  Fingerprint,
   Globe2,
-  Heart,
+  History,
   KeyRound,
   Link2,
   Lock,
-  MapPin,
+  LockKeyhole,
   MessageCircle,
+  Mic,
+  MonitorDown,
   MoreHorizontal,
-  Navigation,
-  Plus,
-  Save,
+  Phone,
   Search,
-  Settings,
+  Send,
+  Settings2,
   Shield,
+  ShieldAlert,
   ShieldCheck,
-  Sparkles,
-  Tag,
-  Trash2,
+  Smartphone,
   UserCheck,
-  UserPlus,
   Users,
   Video,
-  VolumeX,
+  Wifi,
   X,
 } from 'lucide-react';
+import TopBar from '../components/TopBar';
+import BottomNav from '../components/BottomNav';
 
-const initialPrivacyState = {
-  accountPrivate: false,
-  approveFollowers: true,
-  hideFromSearch: false,
-  hideSuggestions: false,
-  hideActivityFromNonFollowers: false,
-  showOnlineStatus: true,
-  showLastSeen: true,
-  showTypingIndicator: true,
-  showReadReceipts: true,
-  hideActiveNow: false,
-  invisibleMode: false,
-  allowStoryReplies: true,
-  allowStoryMentions: true,
-  allowStorySharing: true,
-  allowStoryDownloads: false,
-  storyArchive: true,
-  reviewTaggedPosts: true,
-  approveMentionsManually: true,
-  hiddenMentions: false,
-  mentionRequests: true,
-  messageRequests: true,
-  groupInvites: true,
-  callPermissions: true,
-  videoCallPermissions: true,
-  voiceCallPermissions: true,
-  forwardingPermissions: true,
-  filterOffensiveWords: true,
-  spamFilter: true,
-  linkFilter: true,
-  emojiFilter: false,
-  disableLocationSharing: false,
-  approximateLocation: true,
-  preciseLocation: false,
-  nearbyPermission: true,
-  backgroundLocation: false,
-  profileVisibility: true,
-  followersVisibility: true,
-  followingVisibility: true,
-  likesVisibility: true,
-  savedVisibility: false,
-  reelsVisibility: true,
-  storyVisibility: true,
-  taggedVisibility: true,
+const PRIVACY_KEYS = {
+  privateAccount: 'aarush_private_account',
+  hideOnline: 'aarush_hide_online_status',
+  hideLastSeen: 'aarush_hide_last_seen',
+  hideReadReceipts: 'aarush_hide_read_receipts',
+  hideTyping: 'aarush_hide_typing_indicator',
+  allowStoryReplies: 'aarush_allow_story_replies',
+  allowStorySharing: 'aarush_allow_story_sharing',
+  allowStoryMentions: 'aarush_allow_story_mentions',
+  archiveStories: 'aarush_archive_stories',
+  appearSearch: 'aarush_appear_in_search',
+  appearSuggestions: 'aarush_appear_in_suggestions',
+  mutualConnections: 'aarush_show_mutual_connections',
+  activityStatus: 'aarush_show_activity_status',
+  recentlyActive: 'aarush_show_recently_active',
+  contactSync: 'aarush_allow_contact_sync',
+  screenshotShield: 'aarush_screenshot_shield_enabled',
+  recordingProtection: 'aarush_screen_recording_enabled',
+  shoulderSurf: 'aarush_shoulder_surf_enabled',
+  gazeLock: 'aarush_gaze_lock_enabled',
+  oneTapLock: 'aarush_one_tap_lock_enabled',
+  emergencyPrivacy: 'aarush_emergency_privacy_enabled',
+  appLock: 'aarush_app_lock_enabled',
+  decoyVault: 'aarush_decoy_vault_enabled',
+  antiPeek: 'aarush_anti_peek_shield_enabled',
 };
 
-const initialPrivacyChoices = {
-  storyAudience: 'Followers',
-  commentPermission: 'Everyone',
-  likePermission: 'Everyone',
-  sharePermission: 'Followers',
-  savePermission: 'Everyone',
-  downloadPermission: 'Nobody',
-  remixPermission: 'Followers',
-  duetPermission: 'Followers',
-  collaborationPermission: 'Followers',
-  mentionPermission: 'Everyone',
-  tagPermission: 'Followers',
-  messagePermission: 'Followers',
-  locationMode: 'Approximate location',
-  callPermission: 'Followers',
-};
-
-const initialLists = {
-  closeFriends: ['design.loop', 'arush.team', 'creator.lab'],
-  blocked: ['spam.account'],
-  restricted: ['unknown.user'],
-  muted: ['noisy.creator'],
-  hiddenWords: ['spoiler', 'spam'],
-};
-
-const sections = [
-  {
-    id: 'account',
-    title: 'Account Privacy',
-    icon: Lock,
-    description: 'Control how people discover and interact with your account.',
-  },
-  {
-    id: 'activity',
-    title: 'Activity Status',
-    icon: Activity,
-    description: 'Control presence, active status, typing, and read visibility.',
-  },
-  {
-    id: 'story',
-    title: 'Story Privacy',
-    icon: Sparkles,
-    description: 'Choose who can view and interact with your stories.',
-  },
-  {
-    id: 'post',
-    title: 'Post Privacy',
-    icon: ImageIcon,
-    description: 'Control engagement, downloads, remixing, and sharing.',
-  },
-  {
-    id: 'mentions',
-    title: 'Mentions & Tags',
-    icon: Tag,
-    description: 'Review mentions and tagged content before it appears.',
-  },
-  {
-    id: 'messaging',
-    title: 'Messaging Privacy',
-    icon: MessageCircle,
-    description: 'Manage messages, group invitations, and call permissions.',
-  },
-  {
-    id: 'block',
-    title: 'Block & Restrict',
-    icon: Ban,
-    description: 'Manage blocked, restricted, muted, and hidden accounts.',
-  },
-  {
-    id: 'words',
-    title: 'Hidden Words',
-    icon: EyeOff,
-    description: 'Filter offensive content, spam, links, and custom words.',
-  },
-  {
-    id: 'friends',
-    title: 'Close Friends',
-    icon: Users,
-    description: 'Manage trusted audiences and priority story visibility.',
-  },
-  {
-    id: 'location',
-    title: 'Location Privacy',
-    icon: MapPin,
-    description: 'Control precise, approximate, nearby, and background location.',
-  },
-  {
-    id: 'visibility',
-    title: 'Data & Visibility',
-    icon: Eye,
-    description: 'Choose which parts of your account are publicly visible.',
-  },
+const PRIVACY_SYSTEMS = [
+  ['Profile Privacy Engine', 'Active'],
+  ['Story Privacy Engine', 'Active'],
+  ['Message Privacy Engine', 'Active'],
+  ['Discoverability Engine', 'Active'],
+  ['Permission Sync', 'Syncing'],
+  ['Realtime Privacy Monitor', 'Active'],
+  ['Screenshot Detection', 'Active'],
+  ['Recording Detection', 'Active'],
+  ['Privacy Analytics', 'Active'],
+  ['Data Protection Layer', 'Active'],
 ];
 
-function Toggle({ label, description, checked, onChange, danger = false }) {
-  return (
-    <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '0.75rem',
-        padding: '0.78rem',
-        borderRadius: '0.95rem',
-        background: danger ? 'rgba(255,79,122,0.07)' : 'rgba(255,255,255,0.045)',
-        border: `1px solid ${danger ? 'rgba(255,79,122,0.14)' : 'rgba(255,255,255,0.07)'}`,
-        color: '#dce5f8',
-        cursor: 'pointer',
-      }}
-    >
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <strong style={{ display: 'block', color: danger ? '#ffb1c8' : '#eaf0ff', fontSize: '0.82rem' }}>
-          {label}
-        </strong>
-        {description ? (
-          <span style={{ display: 'block', marginTop: '0.22rem', color: '#8996b2', fontSize: '0.73rem', lineHeight: 1.4 }}>
-            {description}
-          </span>
-        ) : null}
-      </span>
+const PRIVACY_ACTIVITY = [
+  ['Profile viewed', 'Today', '08:32 AM', 'Allowed'],
+  ['Story viewed', 'Today', '07:18 AM', 'Protected'],
+  ['Data downloaded', 'Yesterday', '09:40 PM', 'Completed'],
+  ['Login detected', 'Yesterday', '08:12 PM', 'Reviewed'],
+  ['Screenshot attempt', 'May 18, 2026', '06:20 PM', 'Blocked'],
+  ['Screen recording attempt', 'May 17, 2026', '04:12 PM', 'Blocked'],
+  ['Privacy setting changed', 'May 16, 2026', '11:42 AM', 'Saved'],
+  ['Account visibility changed', 'May 15, 2026', '03:08 PM', 'Saved'],
+];
 
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-      />
+function readBoolean(key, fallback = false) {
+  const value = localStorage.getItem(key);
 
-      <span
-        style={{
-          width: '2.75rem',
-          height: '1.5rem',
-          borderRadius: '999px',
-          padding: '0.16rem',
-          display: 'flex',
-          justifyContent: checked ? 'flex-end' : 'flex-start',
-          background: checked
-            ? 'linear-gradient(90deg, #7c5cff, #4dd7ff)'
-            : 'rgba(255,255,255,0.13)',
-          transition: 'background 180ms ease',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            width: '1.18rem',
-            height: '1.18rem',
-            borderRadius: '999px',
-            background: '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.24)',
-          }}
-        />
-      </span>
-    </label>
-  );
+  if (value === null) {
+    return fallback;
+  }
+
+  return value === 'true';
 }
 
-function SelectRow({ label, value, options, onChange, description }) {
+function Section({ title, icon: Icon, children }) {
   return (
-    <label
-      style={{
-        display: 'grid',
-        gap: '0.42rem',
-        padding: '0.78rem',
-        borderRadius: '0.95rem',
-        background: 'rgba(255,255,255,0.045)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
-    >
-      <span style={{ color: '#eaf0ff', fontSize: '0.82rem', fontWeight: 800 }}>{label}</span>
-      {description ? <span style={{ color: '#8996b2', fontSize: '0.73rem' }}>{description}</span> : null}
-      <span style={{ position: 'relative' }}>
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          style={{
-            width: '100%',
-            appearance: 'none',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '0.75rem',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#f4f7ff',
-            padding: '0.68rem 2rem 0.68rem 0.72rem',
-            outline: 0,
-            fontSize: '0.8rem',
-            fontWeight: 750,
-          }}
-        >
-          {options.map((option) => (
-            <option key={option} value={option} style={{ background: '#111724', color: '#fff' }}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          size={15}
-          style={{
-            position: 'absolute',
-            right: '0.65rem',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-            color: '#91a0bc',
-          }}
-        />
-      </span>
-    </label>
-  );
-}
-
-function RowButton({ icon: Icon, label, description, onClick, danger = false }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.7rem',
-        padding: '0.78rem',
-        borderRadius: '0.95rem',
-        border: `1px solid ${danger ? 'rgba(255,79,122,0.16)' : 'rgba(255,255,255,0.07)'}`,
-        background: danger ? 'rgba(255,79,122,0.07)' : 'rgba(255,255,255,0.045)',
-        color: danger ? '#ffb1c8' : '#eaf0ff',
-        textAlign: 'left',
-        cursor: 'pointer',
-      }}
-    >
-      <span
-        style={{
-          width: '2rem',
-          height: '2rem',
-          borderRadius: '0.7rem',
-          display: 'grid',
-          placeItems: 'center',
-          background: danger
-            ? 'rgba(255,79,122,0.14)'
-            : 'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.12))',
-          flexShrink: 0,
-        }}
-      >
-        <Icon size={14} />
-      </span>
-
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <strong style={{ display: 'block', fontSize: '0.82rem' }}>{label}</strong>
-        {description ? (
-          <span style={{ display: 'block', marginTop: '0.2rem', color: '#8996b2', fontSize: '0.73rem' }}>
-            {description}
-          </span>
-        ) : null}
-      </span>
-
-      <ChevronRight size={15} color={danger ? '#ff9dbd' : '#8190ad'} />
-    </button>
-  );
-}
-
-function SectionCard({ section, expanded, onToggle, children }) {
-  const Icon = section.icon;
-
-  return (
-    <section
-      style={{
-        padding: '0.95rem',
-        borderRadius: '1.25rem',
-        background: 'rgba(15,19,30,0.92)',
-        border: `1px solid ${expanded ? 'rgba(124,92,255,0.24)' : 'rgba(255,255,255,0.08)'}`,
-        boxShadow: '0 18px 50px rgba(0,0,0,0.25)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-      }}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.7rem',
-          border: 0,
-          background: 'transparent',
-          color: '#f5f8ff',
-          textAlign: 'left',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        <span
-          style={{
-            width: '2.15rem',
-            height: '2.15rem',
-            borderRadius: '0.8rem',
-            display: 'grid',
-            placeItems: 'center',
-            background: 'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.14))',
-            color: '#dce8ff',
-            flexShrink: 0,
-          }}
-        >
-          <Icon size={16} />
+    <section style={styles.card}>
+      <div style={styles.sectionHeader}>
+        <span style={styles.sectionIcon}>
+          <Icon size={17} />
         </span>
-
-        <span style={{ flex: 1 }}>
-          <strong style={{ display: 'block', fontSize: '0.9rem' }}>{section.title}</strong>
-          <span style={{ display: 'block', marginTop: '0.22rem', color: '#8996b2', fontSize: '0.74rem', lineHeight: 1.4 }}>
-            {section.description}
-          </span>
-        </span>
-
-        <ChevronDown
-          size={17}
-          color="#91a0bc"
-          style={{
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 180ms ease',
-            flexShrink: 0,
-          }}
-        />
-      </button>
-
-      {expanded ? (
-        <div
-          style={{
-            display: 'grid',
-            gap: '0.55rem',
-            marginTop: '0.85rem',
-            paddingTop: '0.8rem',
-            borderTop: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          {children}
-        </div>
-      ) : null}
+        <h2 style={styles.sectionTitle}>{title}</h2>
+      </div>
+      {children}
     </section>
   );
 }
 
-function ListManager({ title, items, onAdd, onRemove, placeholder }) {
-  const [value, setValue] = useState('');
-
-  const addItem = () => {
-    const cleanValue = value.trim();
-    if (!cleanValue || items.includes(cleanValue)) return;
-    onAdd(cleanValue);
-    setValue('');
-  };
-
+function ToggleRow({
+  icon: Icon,
+  title,
+  description,
+  value,
+  onChange,
+}) {
   return (
-    <div
-      style={{
-        display: 'grid',
-        gap: '0.65rem',
-        padding: '0.8rem',
-        borderRadius: '1rem',
-        background: 'rgba(255,255,255,0.045)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
-    >
-      <strong style={{ color: '#eaf0ff', fontSize: '0.82rem' }}>{title}</strong>
+    <label style={styles.row}>
+      <span style={styles.rowIcon}>
+        <Icon size={17} />
+      </span>
 
-      <div style={{ display: 'flex', gap: '0.45rem' }}>
-        <input
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              addItem();
-            }
-          }}
-          placeholder={placeholder}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '0.75rem',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#fff',
-            padding: '0.68rem',
-            outline: 0,
-            fontSize: '0.8rem',
-          }}
-        />
-        <button
-          type="button"
-          onClick={addItem}
-          style={{
-            width: '2.5rem',
-            height: '2.5rem',
-            borderRadius: '0.75rem',
-            border: 0,
-            background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-            color: '#fff',
-            display: 'grid',
-            placeItems: 'center',
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
-        >
-          <Plus size={16} />
-        </button>
-      </div>
+      <span style={styles.rowCopy}>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-        {items.map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => onRemove(item)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-              padding: '0.42rem 0.55rem',
-              borderRadius: '999px',
-              border: '1px solid rgba(124,92,255,0.16)',
-              background: 'rgba(124,92,255,0.1)',
-              color: '#dce5ff',
-              fontSize: '0.72rem',
-              fontWeight: 750,
-              cursor: 'pointer',
-            }}
-          >
-            {item}
-            <X size={11} />
-          </button>
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(event) => onChange(event.target.checked)}
+        style={styles.checkbox}
+      />
+    </label>
+  );
+}
+
+function SelectRow({
+  icon: Icon,
+  title,
+  description,
+  value,
+  onChange,
+  options,
+}) {
+  return (
+    <div style={styles.row}>
+      <span style={styles.rowIcon}>
+        <Icon size={17} />
+      </span>
+
+      <span style={styles.rowCopy}>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={styles.select}
+        aria-label={title}
+      >
+        {options.map(([key, label]) => (
+          <option key={key} value={key}>
+            {label}
+          </option>
         ))}
-      </div>
+      </select>
     </div>
   );
 }
 
-function DashboardCard({ icon: Icon, label, value, tone = 'default' }) {
-  const colors = {
-    default: ['rgba(124,92,255,0.2)', '#dce5ff'],
-    warning: ['rgba(255,179,71,0.16)', '#ffdda4'],
-    danger: ['rgba(255,79,122,0.14)', '#ffb1c8'],
-    success: ['rgba(77,215,255,0.14)', '#c9f5ff'],
-  };
-
+function ActionButton({ icon: Icon, label, onClick }) {
   return (
-    <div
-      style={{
-        padding: '0.8rem',
-        borderRadius: '1rem',
-        background: 'rgba(255,255,255,0.045)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
+    <button
+      type="button"
+      onClick={onClick}
+      style={styles.actionButton}
     >
+      <Icon size={16} />
+      <span>{label}</span>
+      <ChevronRight size={15} />
+    </button>
+  );
+}
+
+function StatusRow({ name, status }) {
+  return (
+    <div style={styles.systemRow}>
       <span
         style={{
-          width: '2rem',
-          height: '2rem',
-          borderRadius: '0.7rem',
-          display: 'grid',
-          placeItems: 'center',
-          background: colors[tone][0],
-          color: colors[tone][1],
+          ...styles.statusDot,
+          background:
+            status === 'Syncing' ? '#ffd27d' : '#82e9c1',
+          boxShadow:
+            status === 'Syncing'
+              ? '0 0 9px rgba(255,210,125,0.7)'
+              : '0 0 9px rgba(130,233,193,0.7)',
+        }}
+      />
+
+      <span style={styles.systemName}>{name}</span>
+
+      <span
+        style={{
+          ...styles.systemStatus,
+          color:
+            status === 'Syncing' ? '#ffd27d' : '#82e9c1',
         }}
       >
-        <Icon size={15} />
-      </span>
-      <strong style={{ display: 'block', marginTop: '0.55rem', color: colors[tone][1], fontSize: '0.9rem' }}>
-        {value}
-      </strong>
-      <span style={{ display: 'block', marginTop: '0.18rem', color: '#8996b2', fontSize: '0.72rem', lineHeight: 1.35 }}>
-        {label}
+        {status}
       </span>
     </div>
   );
@@ -563,517 +223,1083 @@ function DashboardCard({ icon: Icon, label, value, tone = 'default' }) {
 
 export default function PrivacyCenter() {
   const navigate = useNavigate();
-  const [privacy, setPrivacy] = useState(initialPrivacyState);
-  const [choices, setChoices] = useState(initialPrivacyChoices);
-  const [lists, setLists] = useState(initialLists);
-  const [expandedSection, setExpandedSection] = useState('account');
-  const [showDashboard, setShowDashboard] = useState(true);
-  const [showConnectedApps, setShowConnectedApps] = useState(false);
-  const [showMessage, setShowMessage] = useState(false);
-  const [recentChange, setRecentChange] = useState('No changes yet');
 
-  const updatePrivacy = (key, value) => {
-    setPrivacy((current) => ({ ...current, [key]: value }));
-    setRecentChange(`${key} was updated just now`);
-  };
+  const [toast, setToast] = useState('');
+  const [profileVisibility, setProfileVisibility] =
+    useState('private');
+  const [storyVisibility, setStoryVisibility] =
+    useState('followers');
+  const [commentPermission, setCommentPermission] =
+    useState('followers');
+  const [tagPermission, setTagPermission] =
+    useState('followers');
+  const [mentionPermission, setMentionPermission] =
+    useState('everyone');
+  const [remixPermission, setRemixPermission] =
+    useState('followers');
+  const [downloadPermission, setDownloadPermission] =
+    useState('nobody');
+  const [sharePermission, setSharePermission] =
+    useState('followers');
+  const [messagePermission, setMessagePermission] =
+    useState('followers');
+  const [messageRequests, setMessageRequests] =
+    useState('allow');
+  const [callPermission, setCallPermission] =
+    useState('followers');
+  const [videoPermission, setVideoPermission] =
+    useState('followers');
+  const [groupPermission, setGroupPermission] =
+    useState('followers');
+  const [linkPreview, setLinkPreview] =
+    useState('enabled');
 
-  const updateChoice = (key, value) => {
-    setChoices((current) => ({ ...current, [key]: value }));
-    setRecentChange(`${key} was updated just now`);
-  };
-
-  const addToList = (listName, value) => {
-    setLists((current) => ({
-      ...current,
-      [listName]: [...current[listName], value],
-    }));
-    setRecentChange(`${value} was added to ${listName}`);
-  };
-
-  const removeFromList = (listName, value) => {
-    setLists((current) => ({
-      ...current,
-      [listName]: current[listName].filter((item) => item !== value),
-    }));
-    setRecentChange(`${value} was removed from ${listName}`);
-  };
+  const [values, setValues] = useState(() => ({
+    privateAccount: readBoolean(
+      PRIVACY_KEYS.privateAccount,
+      true
+    ),
+    hideOnline: readBoolean(PRIVACY_KEYS.hideOnline, true),
+    hideLastSeen: readBoolean(PRIVACY_KEYS.hideLastSeen, true),
+    hideReadReceipts: readBoolean(
+      PRIVACY_KEYS.hideReadReceipts,
+      true
+    ),
+    hideTyping: readBoolean(PRIVACY_KEYS.hideTyping, false),
+    allowStoryReplies: readBoolean(
+      PRIVACY_KEYS.allowStoryReplies,
+      true
+    ),
+    allowStorySharing: readBoolean(
+      PRIVACY_KEYS.allowStorySharing,
+      false
+    ),
+    allowStoryMentions: readBoolean(
+      PRIVACY_KEYS.allowStoryMentions,
+      true
+    ),
+    archiveStories: readBoolean(
+      PRIVACY_KEYS.archiveStories,
+      true
+    ),
+    appearSearch: readBoolean(PRIVACY_KEYS.appearSearch, true),
+    appearSuggestions: readBoolean(
+      PRIVACY_KEYS.appearSuggestions,
+      true
+    ),
+    mutualConnections: readBoolean(
+      PRIVACY_KEYS.mutualConnections,
+      true
+    ),
+    activityStatus: readBoolean(
+      PRIVACY_KEYS.activityStatus,
+      false
+    ),
+    recentlyActive: readBoolean(
+      PRIVACY_KEYS.recentlyActive,
+      false
+    ),
+    contactSync: readBoolean(
+      PRIVACY_KEYS.contactSync,
+      false
+    ),
+    screenshotShield: readBoolean(
+      PRIVACY_KEYS.screenshotShield,
+      true
+    ),
+    recordingProtection: readBoolean(
+      PRIVACY_KEYS.recordingProtection,
+      true
+    ),
+    shoulderSurf: readBoolean(
+      PRIVACY_KEYS.shoulderSurf,
+      false
+    ),
+    gazeLock: readBoolean(PRIVACY_KEYS.gazeLock, true),
+    oneTapLock: readBoolean(PRIVACY_KEYS.oneTapLock, false),
+    emergencyPrivacy: readBoolean(
+      PRIVACY_KEYS.emergencyPrivacy,
+      false
+    ),
+    appLock: readBoolean(PRIVACY_KEYS.appLock, false),
+    decoyVault: readBoolean(PRIVACY_KEYS.decoyVault, false),
+    antiPeek: readBoolean(PRIVACY_KEYS.antiPeek, false),
+  }));
 
   const privacyScore = useMemo(() => {
-    const keys = Object.keys(privacy);
-    const enabled = keys.filter((key) => privacy[key]).length;
-    return Math.min(98, Math.max(42, Math.round((enabled / keys.length) * 100)));
-  }, [privacy]);
+    const enabled = Object.values(values).filter(Boolean).length;
+    return Math.min(100, 62 + enabled * 3);
+  }, [values]);
 
-  const styles = {
-    page: {
-      minHeight: '100vh',
-      background:
-        'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
-      color: '#f4f7ff',
-      paddingBottom: '6.9rem',
-    },
-    main: {
-      width: '100%',
-      maxWidth: '900px',
-      margin: '0 auto',
-      padding: '0.9rem 0.9rem 0',
-      display: 'grid',
-      gap: '0.9rem',
-    },
-    topRow: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '0.7rem',
-    },
-    iconButton: {
-      width: '2.65rem',
-      height: '2.65rem',
-      borderRadius: '999px',
-      border: '1px solid rgba(255,255,255,0.08)',
-      background: 'rgba(255,255,255,0.05)',
-      color: '#fff',
-      display: 'grid',
-      placeItems: 'center',
-      cursor: 'pointer',
-    },
-    dashboard: {
-      padding: '1rem',
-      borderRadius: '1.35rem',
-      background: 'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(77,215,255,0.08))',
-      border: '1px solid rgba(124,92,255,0.2)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.28)',
-    },
-    scoreRow: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.85rem',
-    },
-    scoreCircle: {
-      width: '5rem',
-      height: '5rem',
-      borderRadius: '999px',
-      display: 'grid',
-      placeItems: 'center',
-      background: `conic-gradient(#4dd7ff ${privacyScore}%, rgba(255,255,255,0.12) ${privacyScore}% 100%)`,
-      flexShrink: 0,
-    },
-    scoreInner: {
-      width: '4.15rem',
-      height: '4.15rem',
-      borderRadius: '999px',
-      display: 'grid',
-      placeItems: 'center',
-      background: '#111827',
-      color: '#fff',
-      fontSize: '1.08rem',
-      fontWeight: 900,
-    },
-    grid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '0.55rem',
-    },
-    notice: {
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: '0.55rem',
-      padding: '0.75rem',
-      borderRadius: '0.95rem',
-      background: 'rgba(255,179,71,0.08)',
-      border: '1px solid rgba(255,179,71,0.14)',
-      color: '#ffdda4',
-      fontSize: '0.76rem',
-      lineHeight: 1.5,
-    },
-    modalOverlay: {
-      position: 'fixed',
-      inset: 0,
-      zIndex: 1300,
-      display: 'grid',
-      placeItems: 'center',
-      padding: '1rem',
-      background: 'rgba(2,5,10,0.7)',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
-    },
-    modal: {
-      width: 'min(100%, 520px)',
-      maxHeight: '86vh',
-      overflowY: 'auto',
-      padding: '1rem',
-      borderRadius: '1.35rem',
-      background: 'linear-gradient(180deg, rgba(17,22,35,0.99), rgba(9,13,22,0.99))',
-      border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 24px 70px rgba(0,0,0,0.5)',
-    },
+  const updateValue = (key, value) => {
+    setValues((current) => ({
+      ...current,
+      [key]: value,
+    }));
+
+    localStorage.setItem(PRIVACY_KEYS[key], String(value));
+  };
+
+  const showToast = (value) => {
+    setToast(value);
+    window.setTimeout(() => setToast(''), 2600);
+  };
+
+  const openRoute = (route) => {
+    navigate(route);
   };
 
   return (
     <div style={styles.page}>
-      <TopBar pageTitle="Privacy Center" notificationCount={3} />
+      <TopBar
+        pageTitle="Privacy Center"
+        showBackButton
+        initialGazeLock={values.gazeLock}
+        onGazeLockChange={(value) =>
+          updateValue('gazeLock', value)
+        }
+      />
 
-      <main style={styles.main}>
-        <div style={styles.topRow}>
-          <button type="button" onClick={() => navigate(-1)} style={styles.iconButton} aria-label="Go back">
-            <ArrowLeft size={18} />
-          </button>
-
-          <span style={{ color: '#aab6cf', fontSize: '0.78rem', fontWeight: 750 }}>
-            Your privacy, your control
+      <main style={styles.content}>
+        <section style={styles.hero}>
+          <span style={styles.heroIcon}>
+            <ShieldCheck size={28} />
           </span>
 
-          <button
-            type="button"
-            onClick={() => setShowDashboard((current) => !current)}
-            style={styles.iconButton}
-            aria-label="Toggle privacy dashboard"
-          >
-            <ShieldCheck size={17} />
-          </button>
-        </div>
-
-        {showDashboard ? (
-          <section style={styles.dashboard}>
-            <div style={styles.scoreRow}>
-              <div style={styles.scoreCircle}>
-                <div style={styles.scoreInner}>{privacyScore}%</div>
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <h1 style={{ margin: 0, color: '#f5f8ff', fontSize: '1.05rem' }}>Privacy Dashboard</h1>
-                <p style={{ margin: '0.32rem 0 0', color: '#cdd8ed', fontSize: '0.8rem', lineHeight: 1.5 }}>
-                  Your current privacy score is based on visibility, audience, activity, messaging, location, and
-                  safety controls.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ ...styles.grid, marginTop: '0.85rem' }}>
-              <DashboardCard icon={ShieldCheck} label="Current privacy score" value={`${privacyScore}/100`} tone="success" />
-              <DashboardCard icon={AlertTriangle} label="Privacy warnings" value={privacyScore < 70 ? '3' : '1'} tone="warning" />
-              <DashboardCard icon={Lock} label="Protected controls" value="24" tone="default" />
-              <DashboardCard icon={Clock3} label="Recent privacy changes" value="1" tone="success" />
-            </div>
-
-            <div style={{ ...styles.notice, marginTop: '0.8rem' }}>
-              <AlertTriangle size={16} />
-              <span>
-                Review activity status, location sharing, public profile visibility, and message permissions regularly.
-              </span>
-            </div>
-          </section>
-        ) : null}
-
-        <SectionCard
-          section={sections[0]}
-          expanded={expandedSection === 'account'}
-          onToggle={() => setExpandedSection(expandedSection === 'account' ? null : 'account')}
-        >
-          <Toggle
-            label="Public / Private account"
-            description={privacy.accountPrivate ? 'Your account is private.' : 'Your profile is visible publicly.'}
-            checked={privacy.accountPrivate}
-            onChange={(value) => updatePrivacy('accountPrivate', value)}
-          />
-          <Toggle
-            label="Approve followers manually"
-            description="Review follow requests before accepting them."
-            checked={privacy.approveFollowers}
-            onChange={(value) => updatePrivacy('approveFollowers', value)}
-          />
-          <Toggle
-            label="Hide account from search"
-            description="Prevent your account from appearing in search results."
-            checked={privacy.hideFromSearch}
-            onChange={(value) => updatePrivacy('hideFromSearch', value)}
-          />
-          <Toggle
-            label="Hide profile suggestions"
-            description="Reduce recommendations of your profile to other users."
-            checked={privacy.hideSuggestions}
-            onChange={(value) => updatePrivacy('hideSuggestions', value)}
-          />
-          <Toggle
-            label="Hide activity from non-followers"
-            checked={privacy.hideActivityFromNonFollowers}
-            onChange={(value) => updatePrivacy('hideActivityFromNonFollowers', value)}
-          />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[1]}
-          expanded={expandedSection === 'activity'}
-          onToggle={() => setExpandedSection(expandedSection === 'activity' ? null : 'activity')}
-        >
-          <Toggle label="Show online status" checked={privacy.showOnlineStatus} onChange={(value) => updatePrivacy('showOnlineStatus', value)} />
-          <Toggle label="Show last seen" checked={privacy.showLastSeen} onChange={(value) => updatePrivacy('showLastSeen', value)} />
-          <Toggle label="Show typing indicator" checked={privacy.showTypingIndicator} onChange={(value) => updatePrivacy('showTypingIndicator', value)} />
-          <Toggle label="Show read receipts" checked={privacy.showReadReceipts} onChange={(value) => updatePrivacy('showReadReceipts', value)} />
-          <Toggle label="Hide active now" checked={privacy.hideActiveNow} onChange={(value) => updatePrivacy('hideActiveNow', value)} />
-          <Toggle label="Invisible mode" description="Reduce presence signals across Aarush." checked={privacy.invisibleMode} onChange={(value) => updatePrivacy('invisibleMode', value)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[2]}
-          expanded={expandedSection === 'story'}
-          onToggle={() => setExpandedSection(expandedSection === 'story' ? null : 'story')}
-        >
-          <SelectRow
-            label="Default story audience"
-            value={choices.storyAudience}
-            options={['Everyone', 'Followers', 'Close Friends', 'Custom list']}
-            onChange={(value) => updateChoice('storyAudience', value)}
-          />
-          <RowButton icon={EyeOff} label="Hide story from selected users" onClick={() => setShowMessage(true)} />
-          <Toggle label="Allow story replies" checked={privacy.allowStoryReplies} onChange={(value) => updatePrivacy('allowStoryReplies', value)} />
-          <Toggle label="Allow story mentions" checked={privacy.allowStoryMentions} onChange={(value) => updatePrivacy('allowStoryMentions', value)} />
-          <Toggle label="Allow story sharing" checked={privacy.allowStorySharing} onChange={(value) => updatePrivacy('allowStorySharing', value)} />
-          <Toggle label="Allow story downloads" checked={privacy.allowStoryDownloads} onChange={(value) => updatePrivacy('allowStoryDownloads', value)} />
-          <Toggle label="Story archive" description="Keep expired stories private in your archive." checked={privacy.storyArchive} onChange={(value) => updatePrivacy('storyArchive', value)} />
-          <RowButton icon={Users} label="Custom story audience" onClick={() => setShowMessage(true)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[3]}
-          expanded={expandedSection === 'post'}
-          onToggle={() => setExpandedSection(expandedSection === 'post' ? null : 'post')}
-        >
-          <SelectRow label="Who can comment" value={choices.commentPermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('commentPermission', value)} />
-          <SelectRow label="Who can like" value={choices.likePermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('likePermission', value)} />
-          <SelectRow label="Who can share" value={choices.sharePermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('sharePermission', value)} />
-          <SelectRow label="Who can save" value={choices.savePermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('savePermission', value)} />
-          <SelectRow label="Who can download" value={choices.downloadPermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('downloadPermission', value)} />
-          <Toggle label="Allow remix" checked={privacy.remixPermission !== false} onChange={(value) => updatePrivacy('remixPermission', value)} />
-          <Toggle label="Allow duet" checked={privacy.duetPermission !== false} onChange={(value) => updatePrivacy('duetPermission', value)} />
-          <Toggle label="Allow collaboration" checked={privacy.collaborationPermission !== false} onChange={(value) => updatePrivacy('collaborationPermission', value)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[4]}
-          expanded={expandedSection === 'mentions'}
-          onToggle={() => setExpandedSection(expandedSection === 'mentions' ? null : 'mentions')}
-        >
-          <SelectRow label="Who can mention you" value={choices.mentionPermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('mentionPermission', value)} />
-          <SelectRow label="Who can tag you" value={choices.tagPermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('tagPermission', value)} />
-          <Toggle label="Review tagged posts" checked={privacy.reviewTaggedPosts} onChange={(value) => updatePrivacy('reviewTaggedPosts', value)} />
-          <Toggle label="Approve mentions manually" checked={privacy.approveMentionsManually} onChange={(value) => updatePrivacy('approveMentionsManually', value)} />
-          <Toggle label="Hidden mentions" checked={privacy.hiddenMentions} onChange={(value) => updatePrivacy('hiddenMentions', value)} />
-          <Toggle label="Mention requests" checked={privacy.mentionRequests} onChange={(value) => updatePrivacy('mentionRequests', value)} />
-          <RowButton icon={Tag} label="Review pending tags and mentions" onClick={() => setShowMessage(true)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[5]}
-          expanded={expandedSection === 'messaging'}
-          onToggle={() => setExpandedSection(expandedSection === 'messaging' ? null : 'messaging')}
-        >
-          <SelectRow label="Who can message you" value={choices.messagePermission} options={['Everyone', 'Followers', 'Nobody']} onChange={(value) => updateChoice('messagePermission', value)} />
-          <Toggle label="Message requests" checked={privacy.messageRequests} onChange={(value) => updatePrivacy('messageRequests', value)} />
-          <Toggle label="Group invite permissions" checked={privacy.groupInvites} onChange={(value) => updatePrivacy('groupInvites', value)} />
-          <Toggle label="Call permissions" checked={privacy.callPermissions} onChange={(value) => updatePrivacy('callPermissions', value)} />
-          <Toggle label="Video call permissions" checked={privacy.videoCallPermissions} onChange={(value) => updatePrivacy('videoCallPermissions', value)} />
-          <Toggle label="Voice call permissions" checked={privacy.voiceCallPermissions} onChange={(value) => updatePrivacy('voiceCallPermissions', value)} />
-          <Toggle label="Message forwarding permissions" checked={privacy.forwardingPermissions} onChange={(value) => updatePrivacy('forwardingPermissions', value)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[6]}
-          expanded={expandedSection === 'block'}
-          onToggle={() => setExpandedSection(expandedSection === 'block' ? null : 'block')}
-        >
-          <ListManager
-            title="Blocked users list"
-            items={lists.blocked}
-            placeholder="Add username to block"
-            onAdd={(value) => addToList('blocked', value)}
-            onRemove={(value) => removeFromList('blocked', value)}
-          />
-          <ListManager
-            title="Restricted users list"
-            items={lists.restricted}
-            placeholder="Add username to restrict"
-            onAdd={(value) => addToList('restricted', value)}
-            onRemove={(value) => removeFromList('restricted', value)}
-          />
-          <ListManager
-            title="Muted users list"
-            items={lists.muted}
-            placeholder="Add username to mute"
-            onAdd={(value) => addToList('muted', value)}
-            onRemove={(value) => removeFromList('muted', value)}
-          />
-          <RowButton icon={UserCheck} label="Remove follower" onClick={() => setShowMessage(true)} />
-          <RowButton icon={Ban} label="Temporary block" onClick={() => setShowMessage(true)} danger />
-          <RowButton icon={Ban} label="Permanent block" onClick={() => setShowMessage(true)} danger />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[7]}
-          expanded={expandedSection === 'words'}
-          onToggle={() => setExpandedSection(expandedSection === 'words' ? null : 'words')}
-        >
-          <Toggle label="Filter offensive words" checked={privacy.filterOffensiveWords} onChange={(value) => updatePrivacy('filterOffensiveWords', value)} />
-          <Toggle label="Spam filter" checked={privacy.spamFilter} onChange={(value) => updatePrivacy('spamFilter', value)} />
-          <Toggle label="Link filter" checked={privacy.linkFilter} onChange={(value) => updatePrivacy('linkFilter', value)} />
-          <Toggle label="Emoji filter" checked={privacy.emojiFilter} onChange={(value) => updatePrivacy('emojiFilter', value)} />
-          <ListManager
-            title="Custom blocked words"
-            items={lists.hiddenWords}
-            placeholder="Add a word or phrase"
-            onAdd={(value) => addToList('hiddenWords', value)}
-            onRemove={(value) => removeFromList('hiddenWords', value)}
-          />
-          <RowButton icon={Sparkles} label="AI moderation controls" description="Configure automated safety suggestions and filtering." onClick={() => setShowMessage(true)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[8]}
-          expanded={expandedSection === 'friends'}
-          onToggle={() => setExpandedSection(expandedSection === 'friends' ? null : 'friends')}
-        >
-          <ListManager
-            title="Manage Close Friends"
-            items={lists.closeFriends}
-            placeholder="Add username"
-            onAdd={(value) => addToList('closeFriends', value)}
-            onRemove={(value) => removeFromList('closeFriends', value)}
-          />
-          <RowButton icon={Plus} label="Add friends" onClick={() => setShowMessage(true)} />
-          <RowButton icon={Trash2} label="Remove friends" onClick={() => setShowMessage(true)} />
-          <Toggle label="View Close Friends stories" checked={true} onChange={() => setShowMessage(true)} />
-          <Toggle label="Story priority" description="Prioritize Close Friends stories in your story rail." checked={true} onChange={() => setShowMessage(true)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[9]}
-          expanded={expandedSection === 'location'}
-          onToggle={() => setExpandedSection(expandedSection === 'location' ? null : 'location')}
-        >
-          <Toggle label="Disable location sharing" checked={privacy.disableLocationSharing} onChange={(value) => updatePrivacy('disableLocationSharing', value)} />
-          <SelectRow label="Location precision" value={choices.locationMode} options={['Approximate location', 'Precise location', 'Disabled']} onChange={(value) => updateChoice('locationMode', value)} />
-          <Toggle label="Approximate location" checked={privacy.approximateLocation} onChange={(value) => updatePrivacy('approximateLocation', value)} />
-          <Toggle label="Precise location" checked={privacy.preciseLocation} onChange={(value) => updatePrivacy('preciseLocation', value)} />
-          <Toggle label="Nearby content permission" checked={privacy.nearbyPermission} onChange={(value) => updatePrivacy('nearbyPermission', value)} />
-          <Toggle label="Background location access" checked={privacy.backgroundLocation} onChange={(value) => updatePrivacy('backgroundLocation', value)} />
-          <RowButton icon={MapPin} label="Location history" description="Review or clear location history." onClick={() => setShowMessage(true)} />
-        </SectionCard>
-
-        <SectionCard
-          section={sections[10]}
-          expanded={expandedSection === 'visibility'}
-          onToggle={() => setExpandedSection(expandedSection === 'visibility' ? null : 'visibility')}
-        >
-          <Toggle label="Profile visibility" checked={privacy.profileVisibility} onChange={(value) => updatePrivacy('profileVisibility', value)} />
-          <Toggle label="Followers visibility" checked={privacy.followersVisibility} onChange={(value) => updatePrivacy('followersVisibility', value)} />
-          <Toggle label="Following visibility" checked={privacy.followingVisibility} onChange={(value) => updatePrivacy('followingVisibility', value)} />
-          <Toggle label="Likes visibility" checked={privacy.likesVisibility} onChange={(value) => updatePrivacy('likesVisibility', value)} />
-          <Toggle label="Saved posts visibility" checked={privacy.savedVisibility} onChange={(value) => updatePrivacy('savedVisibility', value)} />
-          <Toggle label="Reels visibility" checked={privacy.reelsVisibility} onChange={(value) => updatePrivacy('reelsVisibility', value)} />
-          <Toggle label="Story visibility" checked={privacy.storyVisibility} onChange={(value) => updatePrivacy('storyVisibility', value)} />
-          <Toggle label="Tagged content visibility" checked={privacy.taggedVisibility} onChange={(value) => updatePrivacy('taggedVisibility', value)} />
-        </SectionCard>
-
-        <section
-          style={{
-            padding: '0.9rem',
-            borderRadius: '1.15rem',
-            background: 'rgba(77,215,255,0.07)',
-            border: '1px solid rgba(77,215,255,0.14)',
-            color: '#c9f5ff',
-            fontSize: '0.78rem',
-            lineHeight: 1.55,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.35rem' }}>
-            <ShieldCheck size={15} />
-            Privacy system status
+          <div style={styles.heroCopy}>
+            <h1 style={styles.title}>Privacy Center</h1>
+            <p style={styles.subtitle}>
+              Control who can see your profile, stories, activity,
+              and personal information.
+            </p>
           </div>
-          Privacy permission rules, visibility evaluation, story audiences, mention filtering, tag approval, message
-          permissions, block synchronization, hidden words, location management, audit logging, session-aware visibility,
-          and optimistic updates are ready for Supabase integration.
-          <div style={{ marginTop: '0.55rem', color: '#8fa1bd', fontSize: '0.72rem' }}>
-            Recent change: {recentChange}
+
+          <span style={styles.statusBadge}>Protected</span>
+        </section>
+
+        <section style={styles.scoreCard}>
+          <div
+            style={{
+              ...styles.scoreCircle,
+              background: `conic-gradient(#7c5cff ${privacyScore}%, rgba(255,255,255,0.08) ${privacyScore}% 100%)`,
+            }}
+          >
+            <div style={styles.scoreInner}>
+              <strong>{privacyScore}</strong>
+              <span>/ 100</span>
+            </div>
+          </div>
+
+          <div>
+            <h2 style={styles.scoreTitle}>Strong privacy</h2>
+            <p style={styles.scoreText}>
+              Your privacy controls are configured with strong
+              protection. Review discoverability and message
+              permissions regularly.
+            </p>
           </div>
         </section>
+
+        <Section title="Profile Privacy" icon={CircleUserRound}>
+          <SelectRow
+            icon={Eye}
+            title="Profile Visibility"
+            description="Choose who can view your profile."
+            value={profileVisibility}
+            onChange={setProfileVisibility}
+            options={[
+              ['private', 'Private Account'],
+              ['public', 'Public Account'],
+              ['followers', 'Followers Only'],
+              ['close-friends', 'Close Friends Only'],
+            ]}
+          />
+
+          <ToggleRow
+            icon={EyeOff}
+            title="Hide Online Status"
+            description="Hide when you are currently online."
+            value={values.hideOnline}
+            onChange={(value) =>
+              updateValue('hideOnline', value)
+            }
+          />
+
+          <ToggleRow
+            icon={History}
+            title="Hide Last Seen"
+            description="Hide your last active time."
+            value={values.hideLastSeen}
+            onChange={(value) =>
+              updateValue('hideLastSeen', value)
+            }
+          />
+
+          <ToggleRow
+            icon={MessageCircle}
+            title="Hide Read Receipts"
+            description="Do not show when you read messages."
+            value={values.hideReadReceipts}
+            onChange={(value) =>
+              updateValue('hideReadReceipts', value)
+            }
+          />
+
+          <ToggleRow
+            icon={MessageCircle}
+            title="Hide Typing Indicator"
+            description="Hide typing activity in chats."
+            value={values.hideTyping}
+            onChange={(value) =>
+              updateValue('hideTyping', value)
+            }
+          />
+        </Section>
+
+        <Section title="Story Privacy" icon={Archive}>
+          <SelectRow
+            icon={Eye}
+            title="Story Visibility"
+            description="Choose who can see your stories."
+            value={storyVisibility}
+            onChange={setStoryVisibility}
+            options={[
+              ['public', 'Public'],
+              ['followers', 'Followers'],
+              ['close-friends', 'Close Friends'],
+              ['only-me', 'Only Me'],
+            ]}
+          />
+
+          <ToggleRow
+            icon={MessageCircle}
+            title="Allow Story Replies"
+            description="Allow viewers to reply to your stories."
+            value={values.allowStoryReplies}
+            onChange={(value) =>
+              updateValue('allowStoryReplies', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Send}
+            title="Allow Story Sharing"
+            description="Allow viewers to share your stories."
+            value={values.allowStorySharing}
+            onChange={(value) =>
+              updateValue('allowStorySharing', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Users}
+            title="Allow Story Mentions"
+            description="Allow people to mention you in stories."
+            value={values.allowStoryMentions}
+            onChange={(value) =>
+              updateValue('allowStoryMentions', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Archive}
+            title="Archive Stories Automatically"
+            description="Keep expired stories in your archive."
+            value={values.archiveStories}
+            onChange={(value) =>
+              updateValue('archiveStories', value)
+            }
+          />
+        </Section>
+
+        <Section title="Post Privacy" icon={FileIcon}>
+          <SelectRow
+            icon={MessageCircle}
+            title="Who Can Comment"
+            description="Control comments on your posts."
+            value={commentPermission}
+            onChange={setCommentPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['close-friends', 'Close Friends'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={UserCheck}
+            title="Who Can Tag You"
+            description="Control who can tag your account."
+            value={tagPermission}
+            onChange={setTagPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={AtIcon}
+            title="Who Can Mention You"
+            description="Control mentions in posts and comments."
+            value={mentionPermission}
+            onChange={setMentionPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={RefreshIcon}
+            title="Who Can Remix Your Reels"
+            description="Control remix permissions."
+            value={remixPermission}
+            onChange={setRemixPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={CloudDownload}
+            title="Who Can Download Your Content"
+            description="Control downloads of your content."
+            value={downloadPermission}
+            onChange={setDownloadPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={Send}
+            title="Who Can Share Your Posts"
+            description="Control external sharing."
+            value={sharePermission}
+            onChange={setSharePermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+        </Section>
+
+        <Section title="Message Privacy" icon={MessageCircle}>
+          <SelectRow
+            icon={MessageCircle}
+            title="Who Can Message You"
+            description="Control new direct messages."
+            value={messagePermission}
+            onChange={setMessagePermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={Bell}
+            title="Message Requests"
+            description="Choose how new requests are handled."
+            value={messageRequests}
+            onChange={setMessageRequests}
+            options={[
+              ['allow', 'Allow'],
+              ['filter', 'Filter'],
+              ['block', 'Block'],
+            ]}
+          />
+
+          <SelectRow
+            icon={Phone}
+            title="Voice Call Permissions"
+            description="Control who can voice call you."
+            value={callPermission}
+            onChange={setCallPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={Video}
+            title="Video Call Permissions"
+            description="Control who can video call you."
+            value={videoPermission}
+            onChange={setVideoPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={Users}
+            title="Group Invitation Permissions"
+            description="Control who can add you to groups."
+            value={groupPermission}
+            onChange={setGroupPermission}
+            options={[
+              ['everyone', 'Everyone'],
+              ['followers', 'Followers'],
+              ['nobody', 'Nobody'],
+            ]}
+          />
+
+          <SelectRow
+            icon={Link2}
+            title="Link Preview Control"
+            description="Control previews for shared links."
+            value={linkPreview}
+            onChange={setLinkPreview}
+            options={[
+              ['enabled', 'Enabled'],
+              ['ask', 'Ask Each Time'],
+              ['disabled', 'Disabled'],
+            ]}
+          />
+        </Section>
+
+        <Section title="Discoverability" icon={Search}>
+          <ToggleRow
+            icon={Search}
+            title="Appear in Search"
+            description="Allow your profile to appear in search."
+            value={values.appearSearch}
+            onChange={(value) =>
+              updateValue('appearSearch', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Users}
+            title="Appear in Suggestions"
+            description="Allow Aarush to suggest your profile."
+            value={values.appearSuggestions}
+            onChange={(value) =>
+              updateValue('appearSuggestions', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Users}
+            title="Show Mutual Connections"
+            description="Show shared connections on your profile."
+            value={values.mutualConnections}
+            onChange={(value) =>
+              updateValue('mutualConnections', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Eye}
+            title="Show Activity Status"
+            description="Show when you are active."
+            value={values.activityStatus}
+            onChange={(value) =>
+              updateValue('activityStatus', value)
+            }
+          />
+
+          <ToggleRow
+            icon={ClockIcon}
+            title="Show Recently Active"
+            description="Show your recent activity indicator."
+            value={values.recentlyActive}
+            onChange={(value) =>
+              updateValue('recentlyActive', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Smartphone}
+            title="Allow Contact Sync"
+            description="Use contacts to improve discovery."
+            value={values.contactSync}
+            onChange={(value) =>
+              updateValue('contactSync', value)
+            }
+          />
+        </Section>
+
+        <Section title="Block & Restrict" icon={ShieldAlert}>
+          {[
+            ['Blocked Accounts', Users],
+            ['Restricted Accounts', UserCheck],
+            ['Hidden Accounts', EyeOff],
+            ['Muted Accounts', Bell],
+            ['Hidden Words', Filter],
+            ['Sensitive Content Filter', Shield],
+          ].map(([label, Icon]) => (
+            <ActionButton
+              key={label}
+              icon={Icon}
+              label={label}
+              onClick={() => showToast(`${label} opened.`)}
+            />
+          ))}
+        </Section>
+
+        <Section title="Data & Permissions" icon={Settings2}>
+          {[
+            ['Download My Data', CloudDownload],
+            ['Delete Search History', History],
+            ['Clear Watch History', History],
+            ['Clear Cache', Archive],
+            ['Manage Connected Apps', Link2],
+            ['Manage Permissions', Settings2],
+            ['Camera Permission', Camera],
+            ['Microphone Permission', MicIcon],
+            ['Storage Permission', Archive],
+            ['Notification Permission', Bell],
+          ].map(([label, Icon]) => (
+            <ActionButton
+              key={label}
+              icon={Icon}
+              label={label}
+              onClick={() => showToast(`${label} opened.`)}
+            />
+          ))}
+        </Section>
+
+        <Section title="Advanced Privacy" icon={ShieldCheck}>
+          <ToggleRow
+            icon={Camera}
+            title="Screenshot Shield"
+            description="Protect sensitive screens from screenshots."
+            value={values.screenshotShield}
+            onChange={(value) =>
+              updateValue('screenshotShield', value)
+            }
+          />
+
+          <ToggleRow
+            icon={MonitorDown}
+            title="Screen Recording Protection"
+            description="Protect sensitive content while recording."
+            value={values.recordingProtection}
+            onChange={(value) =>
+              updateValue('recordingProtection', value)
+            }
+          />
+
+          <ToggleRow
+            icon={EyeOff}
+            title="Shoulder Surf Protection"
+            description="Blur private content around you."
+            value={values.shoulderSurf}
+            onChange={(value) =>
+              updateValue('shoulderSurf', value)
+            }
+          />
+
+          <ToggleRow
+            icon={ShieldCheck}
+            title="Gaze Lock"
+            description="Protect content when you look away."
+            value={values.gazeLock}
+            onChange={(value) =>
+              updateValue('gazeLock', value)
+            }
+          />
+
+          <ToggleRow
+            icon={LockKeyhole}
+            title="One Tap Lock"
+            description="Lock Aarush immediately."
+            value={values.oneTapLock}
+            onChange={(value) =>
+              updateValue('oneTapLock', value)
+            }
+          />
+
+          <ToggleRow
+            icon={ShieldAlert}
+            title="Emergency Privacy"
+            description="Enable fast emergency protection."
+            value={values.emergencyPrivacy}
+            onChange={(value) =>
+              updateValue('emergencyPrivacy', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Lock}
+            title="App Lock"
+            description="Require verification before access."
+            value={values.appLock}
+            onChange={(value) =>
+              updateValue('appLock', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Archive}
+            title="Decoy Vault"
+            description="Protect hidden secure storage."
+            value={values.decoyVault}
+            onChange={(value) =>
+              updateValue('decoyVault', value)
+            }
+          />
+
+          <ToggleRow
+            icon={Shield}
+            title="Anti-Peek Shield"
+            description="Reduce exposure of sensitive content."
+            value={values.antiPeek}
+            onChange={(value) =>
+              updateValue('antiPeek', value)
+            }
+          />
+        </Section>
+
+        <Section title="Privacy Activity" icon={History}>
+          <div style={styles.activityList}>
+            {PRIVACY_ACTIVITY.map(
+              ([title, date, time, status]) => (
+                <div key={`${title}-${date}-${time}`} style={styles.activityRow}>
+                  <span style={styles.activityDot} />
+
+                  <div style={styles.activityCopy}>
+                    <strong>{title}</strong>
+                    <small>
+                      {time} · {date} · {status}
+                    </small>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </Section>
+
+        <Section title="Privacy Systems" icon={Shield}>
+          <div style={styles.systemGrid}>
+            {PRIVACY_SYSTEMS.map(([name, status]) => (
+              <StatusRow
+                key={name}
+                name={name}
+                status={status}
+              />
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Quick Privacy Actions" icon={ZapIcon}>
+          <ActionButton
+            icon={ShieldCheck}
+            label="Open Security Center"
+            onClick={() => openRoute('/security-center')}
+          />
+
+          <ActionButton
+            icon={GaugeIcon}
+            label="Open Privacy Dashboard"
+            onClick={() => openRoute('/privacy-dashboard')}
+          />
+
+          <ActionButton
+            icon={ShieldAlert}
+            label="Open Emergency Privacy"
+            onClick={() => openRoute('/emergency-privacy')}
+          />
+
+          <ActionButton
+            icon={EyeOff}
+            label="Open Shoulder Surf"
+            onClick={() => openRoute('/shoulder-surf')}
+          />
+
+          <ActionButton
+            icon={LockKeyhole}
+            label="Open App Lock Settings"
+            onClick={() => openRoute('/app-lock-settings')}
+          />
+
+          <ActionButton
+            icon={FileDown}
+            label="Export Privacy Report"
+            onClick={() =>
+              showToast('Privacy report export prepared.')
+            }
+          />
+        </Section>
       </main>
 
       <BottomNav />
 
-      {showMessage ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowMessage(false)}
-          style={styles.modalOverlay}
-        >
-          <div onClick={(event) => event.stopPropagation()} style={styles.modal}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.75rem',
-                marginBottom: '0.85rem',
-              }}
-            >
-              <div>
-                <h2 style={{ margin: 0, color: '#f5f8ff', fontSize: '1rem' }}>Privacy control</h2>
-                <p style={{ margin: '0.25rem 0 0', color: '#96a3bf', fontSize: '0.78rem' }}>
-                  This control is ready for a Supabase-backed settings workflow.
-                </p>
-              </div>
-              <button type="button" onClick={() => setShowMessage(false)} style={styles.iconButton} aria-label="Close dialog">
-                <X size={17} />
-              </button>
-            </div>
+      {toast ? (
+        <div role="status" style={styles.toast}>
+          {toast}
 
-            <div
-              style={{
-                padding: '0.9rem',
-                borderRadius: '1rem',
-                background: 'rgba(124,92,255,0.1)',
-                border: '1px solid rgba(124,92,255,0.16)',
-                color: '#dce5ff',
-                fontSize: '0.82rem',
-                lineHeight: 1.55,
-              }}
-            >
-              Your preference has been updated locally. Production persistence will synchronize this value through the
-              privacy permission engine and audit log.
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowMessage(false)}
-              style={{
-                width: '100%',
-                marginTop: '0.8rem',
-                border: 0,
-                borderRadius: '999px',
-                padding: '0.78rem',
-                background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-                color: '#fff',
-                fontWeight: 850,
-                cursor: 'pointer',
-              }}
-            >
-              Done
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setToast('')}
+            style={styles.toastClose}
+            aria-label="Dismiss message"
+          >
+            <X size={14} />
+          </button>
         </div>
       ) : null}
     </div>
   );
 }
 
-function ImageIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-      <circle cx="8.5" cy="9" r="1.5" stroke="currentColor" strokeWidth="2" />
-      <path d="m3 17 5-5 3.5 3.5 2.5-2.5 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+function FileIcon(props) {
+  return <Archive {...props} />;
 }
 
+function AtIcon(props) {
+  return <CircleUserRound {...props} />;
+}
+
+function RefreshIcon(props) {
+  return <RefreshCw {...props} />;
+}
+
+function ClockIcon(props) {
+  return <History {...props} />;
+}
+
+function MicIcon(props) {
+  return <Mic {...props} />;
+}
+
+function ZapIcon(props) {
+  return <ShieldCheck {...props} />;
+}
+
+function GaugeIcon(props) {
+  return <Shield {...props} />;
+}
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    paddingBottom: '6.8rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  content: {
+    width: '100%',
+    maxWidth: '860px',
+    margin: '0 auto',
+    padding: '1rem 0.9rem',
+    display: 'grid',
+    gap: '0.9rem',
+  },
+
+  hero: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.8rem',
+    padding: '1rem',
+    borderRadius: '1.3rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 18px 50px rgba(0,0,0,0.25)',
+  },
+
+  heroIcon: {
+    width: '3rem',
+    height: '3rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '1rem',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    boxShadow: '0 0 24px rgba(124,92,255,0.24)',
+  },
+
+  heroCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  title: {
+    margin: 0,
+    color: '#f5f8ff',
+    fontSize: '1.08rem',
+    fontWeight: 850,
+  },
+
+  subtitle: {
+    margin: '0.25rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.74rem',
+    lineHeight: 1.5,
+  },
+
+  statusBadge: {
+    alignSelf: 'flex-start',
+    padding: '0.35rem 0.5rem',
+    borderRadius: '999px',
+    background: 'rgba(130,233,193,0.12)',
+    color: '#82e9c1',
+    fontSize: '0.6rem',
+    fontWeight: 850,
+  },
+
+  scoreCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(15,19,30,0.94))',
+    border: '1px solid rgba(124,92,255,0.24)',
+  },
+
+  scoreCircle: {
+    width: '6.4rem',
+    height: '6.4rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    padding: '0.45rem',
+    borderRadius: '999px',
+  },
+
+  scoreInner: {
+    width: '100%',
+    height: '100%',
+    display: 'grid',
+    placeItems: 'center',
+    alignContent: 'center',
+    borderRadius: '999px',
+    background: '#101624',
+  },
+
+  scoreTitle: {
+    margin: 0,
+    color: '#f5f8ff',
+    fontSize: '0.98rem',
+  },
+
+  scoreText: {
+    margin: '0.35rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.73rem',
+    lineHeight: 1.5,
+  },
+
+  card: {
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 18px 50px rgba(0,0,0,0.2)',
+  },
+
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    marginBottom: '0.8rem',
+  },
+
+  sectionIcon: {
+    width: '2.15rem',
+    height: '2.15rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.7rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.12))',
+    color: '#dce8ff',
+  },
+
+  sectionTitle: {
+    margin: 0,
+    color: '#f5f8ff',
+    fontSize: '0.92rem',
+    fontWeight: 850,
+  },
+
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.7rem',
+    padding: '0.75rem',
+    borderRadius: '0.9rem',
+    border: '1px solid rgba(255,255,255,0.07)',
+    background: 'rgba(255,255,255,0.04)',
+  },
+
+  rowIcon: {
+    width: '2.2rem',
+    height: '2.2rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.7rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.1))',
+    color: '#dce8ff',
+  },
+
+  rowCopy: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '0.18rem',
+    flex: 1,
+  },
+
+  checkbox: {
+    width: '1.15rem',
+    height: '1.15rem',
+    flexShrink: 0,
+    accentColor: '#7c5cff',
+  },
+
+  select: {
+    maxWidth: '8rem',
+    minHeight: '2.2rem',
+    padding: '0 0.45rem',
+    borderRadius: '0.65rem',
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: '#171d2c',
+    color: '#eaf0ff',
+    fontSize: '0.65rem',
+    fontWeight: 750,
+  },
+
+  actionButton: {
+    width: '100%',
+    minHeight: '2.55rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    padding: '0.65rem 0.7rem',
+    borderRadius: '0.8rem',
+    border: '1px solid rgba(124,92,255,0.25)',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(77,215,255,0.08))',
+    color: '#eaf0ff',
+    textAlign: 'left',
+    fontSize: '0.7rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  activityList: {
+    display: 'grid',
+    gap: '0.15rem',
+  },
+
+  activityRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.55rem',
+    padding: '0.65rem 0',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+
+  activityDot: {
+    width: '0.5rem',
+    height: '0.5rem',
+    marginTop: '0.32rem',
+    flexShrink: 0,
+    borderRadius: '999px',
+    background: '#82e9c1',
+    boxShadow: '0 0 9px rgba(130,233,193,0.65)',
+  },
+
+  activityCopy: {
+    display: 'grid',
+    gap: '0.18rem',
+  },
+
+  systemGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.45rem',
+  },
+
+  systemRow: {
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    padding: '0.55rem',
+    borderRadius: '0.7rem',
+    background: 'rgba(255,255,255,0.04)',
+  },
+
+  statusDot: {
+    width: '0.5rem',
+    height: '0.5rem',
+    flexShrink: 0,
+    borderRadius: '999px',
+  },
+
+  systemName: {
+    minWidth: 0,
+    overflow: 'hidden',
+    flex: 1,
+    color: '#cbd6ec',
+    fontSize: '0.59rem',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  systemStatus: {
+    fontSize: '0.53rem',
+    fontWeight: 850,
+  },
+
+  toast: {
+    position: 'fixed',
+    right: '1rem',
+    bottom: '6.2rem',
+    left: '1rem',
+    zIndex: 1200,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+    width: 'fit-content',
+    maxWidth: 'calc(100% - 2rem)',
+    margin: '0 auto',
+    padding: '0.75rem 0.9rem',
+    borderRadius: '999px',
+    background: 'rgba(17,22,35,0.97)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
+    color: '#eaf0ff',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+  },
+
+  toastClose: {
+    width: '1.6rem',
+    height: '1.6rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#aab6cf',
+    cursor: 'pointer',
+  },
+};

@@ -1,944 +1,1629 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Activity,
-  BarChart3,
-  Bell,
-  Bookmark,
+  BadgeCheck,
   Check,
+  ChevronLeft,
   ChevronRight,
   Edit3,
   Eye,
   EyeOff,
-  Grid3X3,
-  Image as ImageIcon,
   Link2,
-  Lock,
-  LogOut,
+  MapPin,
   MessageCircle,
   MoreHorizontal,
-  Send,
-  Settings,
-  Shield,
+  Share2,
   ShieldCheck,
-  Tag,
-  Video,
+  UserRound,
+  Users,
   X,
 } from 'lucide-react';
 import TopBar from '../components/TopBar';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
+import {
+  getFollowers,
+  getFollowersCount,
+  getFollowing,
+  getFollowingCount,
+  getRelationship,
+  toggleFollow,
+} from '../utils/followEngine';
 
-const profile = {
-  username: 'arush.dev',
-  displayName: 'Aarush Developer',
-  avatar: 'A',
-  verified: true,
-  bio: 'Building Aarush with React, Vite, Supabase, and modern social experiences.',
-  website: 'aarush.dev',
-  posts: '86',
-  followers: '18.4K',
-  following: '342',
-  likes: '284K',
+const GUEST_KEYS = {
+  isGuest: 'aarush_is_guest',
+  guestSession: 'aarush_guest_session',
+  guestProfile: 'aarush_guest_profile',
 };
 
-const menuItems = [
-  ['Home', '/home', HomeIcon],
-  ['Shoulder Surf', '/profile/shoulder-surf', EyeOff],
-  ['Emergency Privacy Switch', '/profile/emergency-privacy', Shield],
-  ['Privacy Dashboard', '/profile/privacy-dashboard', ShieldCheck],
-  ['Creator Analytics', '/profile/creator-analytics', BarChart3],
-  ['Profile Settings', '/profile/settings', Settings],
-  ['Privacy', '/profile/privacy', Lock],
-  ['Security', '/profile/security', ShieldCheck],
-  ['Notifications', '/profile/notifications', Bell],
-  ['Chats', '/profile/chats', MessageCircle],
-  ['Controls', '/profile/controls', Settings],
-  ['Help', '/profile/help', HelpIcon],
-  ['Logout', 'logout', LogoutIcon],
-];
+const PROFILE_SELECT = `
+  id,
+  full_name,
+  username,
+  bio,
+  website,
+  location,
+  profession,
+  account_type,
+  is_private,
+  avatar_url,
+  updated_at
+`;
 
-const postImages = [
-  'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1558655146-d09347e92766?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80',
-];
-
-const reelImages = [
-  'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
-];
-
-const taggedImages = [
-  'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=900&q=80',
-];
-
-const savedImages = [
-  'https://images.unsplash.com/photo-1558655146-d09347e92766?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80',
-];
-
-function HomeIcon({ size = 16 }) {
+function isGuestMode() {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
+    localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
+    localStorage.getItem(GUEST_KEYS.guestSession) !== null
   );
 }
 
-function HelpIcon({ size = 16 }) {
+function getGuestProfile() {
+  try {
+    const savedProfile = localStorage.getItem(
+      GUEST_KEYS.guestProfile
+    );
+
+    return savedProfile
+      ? JSON.parse(savedProfile)
+      : {
+          full_name: 'Guest User',
+          username: 'guest',
+          bio: 'Sign in to access your real profile.',
+          account_type: 'Guest',
+          avatar_url: '',
+        };
+  } catch {
+    return {
+      full_name: 'Guest User',
+      username: 'guest',
+      bio: 'Sign in to access your real profile.',
+      account_type: 'Guest',
+      avatar_url: '',
+    };
+  }
+}
+
+function normalizeUsername(username) {
+  if (!username) {
+    return '';
+  }
+
+  return username.startsWith('@')
+    ? username.slice(1)
+    : username;
+}
+
+function formatCount(value) {
+  if (typeof value !== 'number') {
+    return '—';
+  }
+
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1)}M`;
+  }
+
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}K`;
+  }
+
+  return String(value);
+}
+
+function getDisplayName(profile) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M9.8 9a2.3 2.3 0 1 1 3.8 1.7c-1 .8-1.6 1.2-1.6 2.3M12 16h.01"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
+    profile?.full_name ||
+    profile?.displayName ||
+    'Aarush User'
   );
 }
 
-function LogoutIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M10 17l5-5-5-5M15 12H3M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+function getProfileUsername(profile) {
+  return normalizeUsername(
+    profile?.username || profile?.user_name || 'user'
   );
 }
 
-function PlayIcon({ size = 12 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  );
-}
-
-function BookmarkIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v17l-6-3-6 3V4Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function TagIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3.4 13.4a2 2 0 0 1-.6-1.4V5a2 2 0 0 1 2-2h7a2 2 0 0 1 1.4.6l7.4 7a2 2 0 0 1 0 2.8Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <circle cx="8" cy="8" r="1.2" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PhoneIcon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M5 4h3l2 5-2 1.5a14 14 0 0 0 5.5 5.5L15 14l5 2v3a2 2 0 0 1-2 2C10.3 21 3 13.7 3 5a2 2 0 0 1 2-1Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ProfileStat({ label, value }) {
-  return (
-    <div style={{ display: 'grid', gap: '0.2rem', textAlign: 'center' }}>
-      <strong style={{ color: '#f7f9ff', fontSize: '1rem' }}>{value}</strong>
-      <span style={{ color: '#96a3bf', fontSize: '0.7rem', fontWeight: 750 }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function ProfileAction({ icon: Icon, label, onClick }) {
+function ProfileStat({ label, value, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{
-        flex: '1 1 10rem',
-        minHeight: '2.75rem',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.4rem',
-        padding: '0.7rem 0.8rem',
-        borderRadius: '999px',
-        border: '1px solid rgba(124,92,255,0.3)',
-        background: 'linear-gradient(135deg, rgba(124,92,255,0.27), rgba(77,215,255,0.12))',
-        color: '#fff',
-        fontSize: '0.78rem',
-        fontWeight: 850,
-        cursor: 'pointer',
-      }}
+      style={styles.statButton}
     >
-      <Icon size={15} />
-      {label}
+      <strong>{formatCount(value)}</strong>
+      <span>{label}</span>
     </button>
   );
 }
 
-function ContentSection({ title, description, icon: Icon, images, type, onOpen }) {
+function RelationshipButton({
+  relationship,
+  onClick,
+  loading,
+  disabled,
+}) {
+  if (relationship?.isOwnProfile) {
+    return null;
+  }
+
+  const isFollowing = relationship?.following;
+
   return (
-    <section
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading || disabled}
       style={{
-        padding: '0.95rem',
-        borderRadius: '1.25rem',
-        background: 'rgba(15,19,30,0.92)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        boxShadow: '0 18px 50px rgba(0,0,0,0.25)',
+        ...styles.followButton,
+        ...(isFollowing ? styles.followingButton : {}),
+        ...(loading || disabled ? styles.disabledButton : {}),
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.7rem',
-          marginBottom: '0.8rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-          <span
-            style={{
-              width: '2rem',
-              height: '2rem',
-              borderRadius: '0.7rem',
-              display: 'grid',
-              placeItems: 'center',
-              background: 'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.12))',
-              color: '#dce8ff',
-            }}
-          >
-            <Icon size={15} />
-          </span>
-
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                color: '#f5f8ff',
-                fontSize: '0.98rem',
-                fontWeight: 850,
-              }}
-            >
-              {title}
-            </h2>
-
-            <p
-              style={{
-                margin: '0.22rem 0 0',
-                color: '#8e9bb7',
-                fontSize: '0.72rem',
-              }}
-            >
-              {description}
-            </p>
-          </div>
-        </div>
-
-        <span style={{ color: '#8996b2', fontSize: '0.72rem', fontWeight: 750 }}>
-          {type}
-        </span>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-          gap: '0.45rem',
-        }}
-      >
-        {images.map((image, index) => (
-          <button
-            key={`${image}-${index}`}
-            type="button"
-            onClick={onOpen}
-            style={{
-              position: 'relative',
-              aspectRatio: '1 / 1.12',
-              overflow: 'hidden',
-              borderRadius: '0.8rem',
-              border: '1px solid rgba(255,255,255,0.08)',
-              background: '#111827',
-              padding: 0,
-              cursor: 'pointer',
-            }}
-          >
-            <img
-              src={image}
-              alt={`${title} ${index + 1}`}
-              loading="lazy"
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'block',
-                objectFit: 'cover',
-              }}
-            />
-
-            <span
-              style={{
-                position: 'absolute',
-                top: '0.4rem',
-                right: '0.4rem',
-                width: '1.7rem',
-                height: '1.7rem',
-                borderRadius: '999px',
-                display: 'grid',
-                placeItems: 'center',
-                background: 'rgba(5,8,15,0.62)',
-                color: '#fff',
-              }}
-            >
-              {type === 'Reels' ? (
-                <PlayIcon />
-              ) : type === 'Tagged' ? (
-                <TagIcon size={12} />
-              ) : type === 'Saved' ? (
-                <BookmarkIcon size={12} />
-              ) : index === 1 ? (
-                '▧'
-              ) : (
-                <ImageIcon size={12} />
-              )}
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
+      {loading ? (
+        'Updating…'
+      ) : isFollowing ? (
+        <>
+          <Check size={15} />
+          Following
+        </>
+      ) : (
+        <>
+          <Users size={15} />
+          Follow
+        </>
+      )}
+    </button>
   );
 }
 
-function ProfileMenu({ onClose, onNavigate, onLogout }) {
+function PersonRow({
+  person,
+  viewerId,
+  isFollowingPerson,
+  actionLoading,
+  onFollow,
+  onUnfollow,
+}) {
+  const displayName =
+    person.full_name || 'Aarush User';
+  const username = normalizeUsername(person.username);
+
+  return (
+    <div style={styles.personRow}>
+      {person.avatar_url ? (
+        <img
+          src={person.avatar_url}
+          alt={`${displayName} avatar`}
+          style={styles.personAvatar}
+        />
+      ) : (
+        <span style={styles.personPlaceholder}>
+          <UserRound size={19} />
+        </span>
+      )}
+
+      <div style={styles.personCopy}>
+        <strong>{displayName}</strong>
+        <span>@{username || 'user'}</span>
+      </div>
+
+      {viewerId && viewerId !== person.id ? (
+        <button
+          type="button"
+          disabled={actionLoading}
+          onClick={() =>
+            isFollowingPerson
+              ? onUnfollow(person.id)
+              : onFollow(person.id)
+          }
+          style={{
+            ...styles.personAction,
+            ...(isFollowingPerson
+              ? styles.personFollowingAction
+              : {}),
+          }}
+        >
+          {actionLoading
+            ? '…'
+            : isFollowingPerson
+              ? 'Following'
+              : 'Follow'}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function PeopleSheet({
+  type,
+  people,
+  viewerId,
+  loading,
+  onClose,
+  onFollow,
+  onUnfollow,
+  relationshipMap,
+  actionTarget,
+}) {
+  const title = type === 'followers'
+    ? 'Followers'
+    : 'Following';
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1200,
-        background: 'rgba(2,5,10,0.68)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-      }}
+      style={styles.sheetBackdrop}
     >
-      <aside
+      <section
         onClick={(event) => event.stopPropagation()}
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: 'min(90vw, 420px)',
-          overflowY: 'auto',
-          padding: '1rem',
-          background: 'linear-gradient(180deg, rgba(17,22,35,0.99), rgba(9,13,22,0.99))',
-          borderLeft: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '-24px 0 70px rgba(0,0,0,0.45)',
-        }}
+        style={styles.sheet}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.7rem',
-            marginBottom: '1rem',
-          }}
-        >
+        <div style={styles.sheetHandle} />
+
+        <div style={styles.sheetHeader}>
           <div>
-            <h2 style={{ margin: 0, color: '#f5f8ff', fontSize: '1.05rem' }}>
-              Profile Menu
-            </h2>
-            <p style={{ margin: '0.25rem 0 0', color: '#96a3bf', fontSize: '0.76rem' }}>
-              Account, privacy, security, and creator tools.
+            <h2>{title}</h2>
+            <p>
+              {type === 'followers'
+                ? 'People who follow this profile.'
+                : 'Profiles followed by this account.'}
             </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            style={{
-              width: '2.65rem',
-              height: '2.65rem',
-              borderRadius: '999px',
-              border: '1px solid rgba(255,255,255,0.08)',
-              background: 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              display: 'grid',
-              placeItems: 'center',
-              cursor: 'pointer',
-            }}
-            aria-label="Close profile menu"
+            style={styles.closeButton}
+            aria-label="Close list"
           >
             <X size={17} />
           </button>
         </div>
 
-        {menuItems.map(([label, route, Icon]) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => (route === 'logout' ? onLogout() : onNavigate(route))}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.65rem',
-              marginBottom: '0.5rem',
-              padding: '0.8rem',
-              borderRadius: '0.95rem',
-              border: `1px solid ${
-                label === 'Logout'
-                  ? 'rgba(255,79,122,0.16)'
-                  : 'rgba(255,255,255,0.07)'
-              }`,
-              background:
-                label === 'Logout'
-                  ? 'rgba(255,79,122,0.07)'
-                  : 'rgba(255,255,255,0.045)',
-              color: label === 'Logout' ? '#ffb1c8' : '#eaf0ff',
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}
-          >
-            <span
-              style={{
-                width: '2.1rem',
-                height: '2.1rem',
-                borderRadius: '0.7rem',
-                display: 'grid',
-                placeItems: 'center',
-                background:
-                  label === 'Logout'
-                    ? 'rgba(255,79,122,0.14)'
-                    : 'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.12))',
-                color: label === 'Logout' ? '#ff9dbd' : '#dce8ff',
-                flexShrink: 0,
-              }}
-            >
-              <Icon size={15} />
+        {loading ? (
+          <div style={styles.sheetLoading}>
+            Loading {title.toLowerCase()}…
+          </div>
+        ) : people.length ? (
+          <div style={styles.peopleList}>
+            {people.map((person) => (
+              <PersonRow
+                key={person.id}
+                person={person}
+                viewerId={viewerId}
+                isFollowingPerson={Boolean(
+                  relationshipMap[person.id]
+                )}
+                actionLoading={actionTarget === person.id}
+                onFollow={onFollow}
+                onUnfollow={onUnfollow}
+              />
+            ))}
+          </div>
+        ) : (
+          <div style={styles.emptyPeople}>
+            <Users size={26} />
+            <span>
+              {type === 'followers'
+                ? 'No followers yet.'
+                : 'Not following anyone yet.'}
             </span>
-
-            <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 800 }}>
-              {label}
-            </span>
-
-            <ChevronRight
-              size={15}
-              color={label === 'Logout' ? '#ff9dbd' : '#8190ad'}
-            />
-          </button>
-        ))}
-      </aside>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const { username: routeUsername } = useParams();
 
-  const [showMenu, setShowMenu] = useState(false);
-  const [activeTab, setActiveTab] = useState('grid');
-  const [timeLimitedProfile, setTimeLimitedProfile] = useState(false);
-  const [screenRecording, setScreenRecording] = useState(false);
-  const [screenshotShield, setScreenshotShield] = useState(true);
-  const [decoyVault, setDecoyVault] = useState(false);
-  const [message, setMessage] = useState('');
+  const [profile, setProfile] = useState(null);
+  const [user, setUser] = useState(null);
+  const [guest, setGuest] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [relationship, setRelationship] = useState(null);
+  const [relationshipLoading, setRelationshipLoading] =
+    useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [postsCount, setPostsCount] = useState(null);
+  const [sheetType, setSheetType] = useState(null);
+  const [people, setPeople] = useState([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peopleRelationshipMap, setPeopleRelationshipMap] =
+    useState({});
+  const [peopleActionTarget, setPeopleActionTarget] =
+    useState(null);
+  const [toast, setToast] = useState('');
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    window.localStorage.removeItem('aarush_one_tap_lock_enabled');
-    navigate('/welcome', { replace: true });
+  const isOwnProfile = useMemo(() => {
+    if (guest || !user || !profile) {
+      return false;
+    }
+
+    return user.id === profile.id;
+  }, [guest, profile, user]);
+
+  const profileUsername = getProfileUsername(profile);
+  const displayName = getDisplayName(profile);
+  const isPrivate = Boolean(
+    profile?.is_private ?? profile?.isPrivate
+  );
+
+  const showToast = (message) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 2600);
   };
 
-  const showMessage = (value) => {
-    setMessage(value);
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const guestMode = isGuestMode();
+
+      if (guestMode) {
+        const guestProfile = getGuestProfile();
+
+        setGuest(true);
+        setUser(null);
+        setProfile(guestProfile);
+        setRelationship(null);
+        setFollowersCount(
+          Number(guestProfile.followers_count || 0)
+        );
+        setFollowingCount(
+          Number(guestProfile.following_count || 0)
+        );
+        setPostsCount(
+          guestProfile.posts_count ?? null
+        );
+
+        return;
+      }
+
+      const {
+        data: { user: currentUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !currentUser) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      let profileQuery = supabase
+        .from('profiles')
+        .select(PROFILE_SELECT);
+
+      if (routeUsername) {
+        profileQuery = profileQuery.eq(
+          'username',
+          normalizeUsername(routeUsername)
+        );
+      } else {
+        profileQuery = profileQuery.eq(
+          'id',
+          currentUser.id
+        );
+      }
+
+      const { data: profileRow, error: profileError } =
+        await profileQuery.maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (!profileRow) {
+        throw new Error('Profile not found.');
+      }
+
+      const [
+        relationshipData,
+        followersTotal,
+        followingTotal,
+      ] = await Promise.all([
+        getRelationship(
+          currentUser.id,
+          profileRow.id
+        ),
+        getFollowersCount(profileRow.id),
+        getFollowingCount(profileRow.id),
+      ]);
+
+      setGuest(false);
+      setUser(currentUser);
+      setProfile(profileRow);
+      setRelationship(relationshipData);
+      setFollowersCount(followersTotal);
+      setFollowingCount(followingTotal);
+
+      if (typeof profileRow.posts_count === 'number') {
+        setPostsCount(profileRow.posts_count);
+      } else {
+        setPostsCount(null);
+      }
+    } catch (loadError) {
+      setError(
+        loadError.message || 'Unable to load profile.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate, routeUsername]);
+
+  useEffect(() => {
+    loadProfile();
+
+    const handleFocus = () => {
+      loadProfile();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [loadProfile]);
+
+  const handleFollowToggle = async () => {
+    if (guest) {
+      showToast('Sign in to follow profiles.');
+      return;
+    }
+
+    if (!user || !profile || isOwnProfile) {
+      return;
+    }
+
+    const previousRelationship = relationship;
+    const wasFollowing = Boolean(
+      relationship?.following
+    );
+
+    setRelationshipLoading(true);
+
+    setRelationship({
+      ...relationship,
+      state: wasFollowing
+        ? 'not_following'
+        : 'following',
+      following: !wasFollowing,
+      followBack: relationship?.followBack || false,
+      isOwnProfile: false,
+    });
+
+    setFollowersCount((count) =>
+      wasFollowing ? Math.max(0, count - 1) : count + 1
+    );
+
+    try {
+      const nextRelationship = await toggleFollow(
+        user.id,
+        profile.id,
+        wasFollowing
+      );
+
+      setRelationship((current) => ({
+        ...current,
+        ...nextRelationship,
+      }));
+    } catch (followError) {
+      setRelationship(previousRelationship);
+      setFollowersCount((count) =>
+        wasFollowing ? count + 1 : Math.max(0, count - 1)
+      );
+
+      showToast(
+        followError.message || 'Unable to update follow status.'
+      );
+    } finally {
+      setRelationshipLoading(false);
+    }
   };
+
+  const openPeopleSheet = async (type) => {
+    if (guest) {
+      showToast(
+        'Sign in to access the complete follower list.'
+      );
+      return;
+    }
+
+    if (!profile?.id) {
+      return;
+    }
+
+    setSheetType(type);
+    setPeople([]);
+    setPeopleLoading(true);
+    setPeopleRelationshipMap({});
+
+    try {
+      const result =
+        type === 'followers'
+          ? await getFollowers(profile.id)
+          : await getFollowing(profile.id);
+
+      setPeople(result);
+
+      if (user?.id && result.length) {
+        const relationshipEntries = await Promise.all(
+          result.map(async (person) => {
+            if (person.id === user.id) {
+              return [person.id, false];
+            }
+
+            const relationshipResult = await getRelationship(
+              user.id,
+              person.id
+            );
+
+            return [
+              person.id,
+              Boolean(relationshipResult.following),
+            ];
+          })
+        );
+
+        setPeopleRelationshipMap(
+          Object.fromEntries(relationshipEntries)
+        );
+      }
+    } catch (peopleError) {
+      showToast(
+        peopleError.message || 'Unable to load profiles.'
+      );
+    } finally {
+      setPeopleLoading(false);
+    }
+  };
+
+  const handlePeopleFollow = async (personId) => {
+    if (guest) {
+      showToast('Sign in to follow profiles.');
+      return;
+    }
+
+    if (!user) {
+      return;
+    }
+
+    setPeopleActionTarget(personId);
+
+    setPeopleRelationshipMap((current) => ({
+      ...current,
+      [personId]: true,
+    }));
+
+    try {
+      await toggleFollow(user.id, personId, false);
+    } catch (followError) {
+      setPeopleRelationshipMap((current) => ({
+        ...current,
+        [personId]: false,
+      }));
+
+      showToast(
+        followError.message || 'Unable to follow profile.'
+      );
+    } finally {
+      setPeopleActionTarget(null);
+    }
+  };
+
+  const handlePeopleUnfollow = async (personId) => {
+    if (guest) {
+      showToast('Sign in to unfollow profiles.');
+      return;
+    }
+
+    if (!user) {
+      return;
+    }
+
+    setPeopleActionTarget(personId);
+
+    setPeopleRelationshipMap((current) => ({
+      ...current,
+      [personId]: false,
+    }));
+
+    try {
+      await toggleFollow(user.id, personId, true);
+    } catch (followError) {
+      setPeopleRelationshipMap((current) => ({
+        ...current,
+        [personId]: true,
+      }));
+
+      showToast(
+        followError.message || 'Unable to unfollow profile.'
+      );
+    } finally {
+      setPeopleActionTarget(null);
+    }
+  };
+
+  const shareProfile = async () => {
+    const publicUsername =
+      profileUsername || 'user';
+
+    const profileUrl = `${window.location.origin}/profile/${publicUsername}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: displayName,
+          text: `View ${displayName}'s Aarush profile.`,
+          url: profileUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(profileUrl);
+        showToast('Profile link copied.');
+      }
+    } catch {
+      showToast('Profile sharing cancelled.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={styles.page}>
+        <TopBar pageTitle="Profile" />
+
+        <main style={styles.loadingState}>
+          <div style={styles.loadingAvatar} />
+          <div style={styles.loadingLineLarge} />
+          <div style={styles.loadingLineSmall} />
+          <div style={styles.loadingCard} />
+        </main>
+
+        <BottomNav />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={styles.page}>
+        <TopBar pageTitle="Profile" />
+
+        <main style={styles.errorState}>
+          <ShieldCheck size={32} color="#ff9fba" />
+          <h1>Unable to load profile</h1>
+          <p>{error}</p>
+
+          <button
+            type="button"
+            onClick={loadProfile}
+            style={styles.primaryButton}
+          >
+            Retry
+          </button>
+        </main>
+
+        <BottomNav />
+      </div>
+    );
+  }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        paddingBottom: '6.8rem',
-        background:
-          'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
-        color: '#f4f7ff',
-      }}
-    >
+    <div style={styles.page}>
       <TopBar
         profileMode
-        username={profile.username}
-        timeLimitedProfile={timeLimitedProfile}
-        screenRecording={screenRecording}
-        screenshotShield={screenshotShield}
-        decoyVault={decoyVault}
-        onTimeLimitedProfile={(value) => {
-          setTimeLimitedProfile(value);
-          navigate('/profile/time-limited');
-        }}
-        onScreenRecording={(value) => {
-          setScreenRecording(value);
-          navigate('/profile/screen-recording');
-        }}
-        onScreenshotShield={(value) => {
-          setScreenshotShield(value);
-          navigate('/profile/screenshot-shield');
-        }}
-        onDecoyVault={(value) => {
-          setDecoyVault(value);
-          navigate('/profile/decoy-vault');
-        }}
-        onMenuClick={() => setShowMenu(true)}
+        pageTitle={displayName}
+        username={`@${profileUsername}`}
       />
 
-      <main
-        style={{
-          width: '100%',
-          maxWidth: '900px',
-          margin: '0 auto',
-          padding: '1rem 0.9rem 0',
-          display: 'grid',
-          gap: '0.9rem',
-        }}
-      >
-        <section
-          style={{
-            padding: '1rem',
-            borderRadius: '1.35rem',
-            background: 'rgba(15,19,30,0.92)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.28)',
-            backdropFilter: 'blur(14px)',
-            WebkitBackdropFilter: 'blur(14px)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div
-              style={{
-                width: '6.7rem',
-                height: '6.7rem',
-                borderRadius: '999px',
-                padding: '4px',
-                background:
-                  'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
-                boxShadow: '0 0 28px rgba(124,92,255,0.26)',
-                flexShrink: 0,
-              }}
-            >
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'grid',
-                  placeItems: 'center',
-                  borderRadius: '999px',
-                  background: 'linear-gradient(135deg, #151a28, #252d48)',
-                  color: '#fff',
-                  fontSize: '2rem',
-                  fontWeight: 900,
-                }}
-              >
-                {profile.avatar}
-              </div>
+      <main style={styles.content}>
+        {guest ? (
+          <div style={styles.guestNotice}>
+            <UserRound size={17} />
+            <span>
+              Guest Mode · Sign in to access your real profile.
+            </span>
+          </div>
+        ) : null}
+
+        <section style={styles.profileCard}>
+          <div style={styles.profileTop}>
+            <div style={styles.avatarWrapper}>
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={`${displayName} avatar`}
+                  style={styles.avatar}
+                />
+              ) : (
+                <span style={styles.placeholderAvatar}>
+                  <UserRound size={38} />
+                </span>
+              )}
             </div>
 
-            <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <strong style={{ color: '#f6f8ff', fontSize: '1.12rem' }}>
-                  {profile.username}
-                </strong>
+            <div style={styles.identity}>
+              <div style={styles.usernameRow}>
+                <strong>@{profileUsername}</strong>
 
-                {profile.verified ? (
-                  <span
-                    style={{
-                      width: '1.05rem',
-                      height: '1.05rem',
-                      borderRadius: '999px',
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: 'linear-gradient(135deg, #4dd7ff, #7c5cff)',
-                      color: '#fff',
-                      fontSize: '0.68rem',
-                      fontWeight: 900,
-                    }}
-                  >
-                    ✓
-                  </span>
+                {profile?.verified ? (
+                  <BadgeCheck
+                    size={17}
+                    color="#72e3ff"
+                  />
                 ) : null}
               </div>
 
-              <strong style={{ color: '#cbd6ec', fontSize: '0.84rem' }}>
-                {profile.displayName}
-              </strong>
+              <span style={styles.fullName}>
+                {displayName}
+              </span>
 
-              <p
-                style={{
-                  margin: '0.3rem 0 0',
-                  color: '#d5def1',
-                  fontSize: '0.82rem',
-                  lineHeight: 1.5,
-                }}
-              >
-                {profile.bio}
+              <span style={styles.accountType}>
+                {profile?.account_type || 'Personal'}
+              </span>
+
+              <p style={styles.bio}>
+                {profile?.bio || 'No bio yet.'}
               </p>
 
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.45rem',
-                  marginTop: '0.35rem',
-                  color: '#91a0bc',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.28rem',
-                  }}
-                >
-                  <Link2 size={12} />
-                  {profile.website}
+              <div style={styles.metaList}>
+                <span>
+                  <Link2 size={13} />
+                  {profile?.website || 'Add your website'}
                 </span>
 
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.28rem',
-                  }}
-                >
-                  <Eye size={12} />
-                  Public profile
+                <span>
+                  <MapPin size={13} />
+                  {profile?.location || 'Location not set'}
                 </span>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => showToast('More actions coming soon.')}
+              style={styles.moreButton}
+              aria-label="More profile actions"
+            >
+              <MoreHorizontal size={18} />
+            </button>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gap: '0.4rem',
-              marginTop: '1rem',
-              paddingTop: '0.9rem',
-              borderTop: '1px solid rgba(255,255,255,0.07)',
-            }}
-          >
-            <ProfileStat label="Posts" value={profile.posts} />
-            <ProfileStat label="Followers" value={profile.followers} />
-            <ProfileStat label="Following" value={profile.following} />
-            <ProfileStat label="Likes" value={profile.likes} />
+          <div style={styles.profileStatus}>
+            <span
+              style={{
+                ...styles.visibilityBadge,
+                ...(isPrivate
+                  ? styles.privateBadge
+                  : styles.publicBadge),
+              }}
+            >
+              {isPrivate ? (
+                <EyeOff size={12} />
+              ) : (
+                <Eye size={12} />
+              )}
+
+              {isPrivate
+                ? 'Private profile'
+                : 'Public profile'}
+            </span>
+
+            {guest ? (
+              <span style={styles.guestBadge}>
+                Guest Mode
+              </span>
+            ) : null}
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.5rem',
-              marginTop: '0.9rem',
-            }}
-          >
-            <ProfileAction
-              icon={Edit3}
-              label="Edit Profile"
-              onClick={() => navigate('/profile/settings')}
+          <div style={styles.statsGrid}>
+            <ProfileStat
+              label="Posts"
+              value={postsCount}
+              onClick={() => navigate('/home')}
             />
 
-            <ProfileAction
-              icon={Send}
-              label="Share Profile"
-              onClick={() => showMessage('Profile link copied.')}
+            <ProfileStat
+              label="Followers"
+              value={followersCount}
+              onClick={() => openPeopleSheet('followers')}
+            />
+
+            <ProfileStat
+              label="Following"
+              value={followingCount}
+              onClick={() => openPeopleSheet('following')}
             />
           </div>
+
+          <div style={styles.actionRow}>
+            {isOwnProfile ? (
+              <button
+                type="button"
+                onClick={() =>
+                  navigate('/profile-settings')
+                }
+                style={styles.primaryAction}
+              >
+                <Edit3 size={15} />
+                Edit Profile
+              </button>
+            ) : (
+              <RelationshipButton
+                relationship={relationship}
+                loading={relationshipLoading}
+                disabled={guest}
+                onClick={handleFollowToggle}
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={shareProfile}
+              style={styles.secondaryAction}
+            >
+              <Share2 size={15} />
+              Share
+            </button>
+
+            {!isOwnProfile && !guest ? (
+              <button
+                type="button"
+                onClick={() =>
+                  showToast('Message composer coming soon.')
+                }
+                style={styles.iconAction}
+                aria-label="Message profile"
+              >
+                <MessageCircle size={16} />
+              </button>
+            ) : null}
+          </div>
+
+          {guest ? (
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              style={styles.signInButton}
+            >
+              Sign in to access your real profile
+              <ChevronRight size={15} />
+            </button>
+          ) : null}
         </section>
 
-        <section
-          style={{
-            padding: '0.95rem',
-            borderRadius: '1.25rem',
-            background: 'rgba(15,19,30,0.92)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.55rem',
-              marginBottom: '0.8rem',
-            }}
-          >
-            <ShieldCheck size={17} color="#72e3ff" />
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <span style={styles.sectionIcon}>
+              <ShieldCheck size={16} />
+            </span>
 
             <div>
-              <h2
-                style={{
-                  margin: 0,
-                  color: '#f5f8ff',
-                  fontSize: '0.98rem',
-                  fontWeight: 850,
-                }}
-              >
-                Story Highlights
+              <h2 style={styles.sectionTitle}>
+                Profile Details
               </h2>
 
-              <p
-                style={{
-                  margin: '0.25rem 0 0',
-                  color: '#8e9bb7',
-                  fontSize: '0.74rem',
-                }}
-              >
-                Organize important stories on your profile.
+              <p style={styles.sectionDescription}>
+                Information shared by this profile.
               </p>
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.8rem',
-              overflowX: 'auto',
-            }}
-          >
-            {['Aarush', 'Builds', 'Ideas', 'Travel'].map((title, index) => (
-              <button
-                key={title}
-                type="button"
-                onClick={() => showMessage(`${title} highlight opened.`)}
-                style={{
-                  minWidth: '4.7rem',
-                  display: 'grid',
-                  justifyItems: 'center',
-                  gap: '0.4rem',
-                  border: 0,
-                  background: 'transparent',
-                  color: '#dfe7fb',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  style={{
-                    width: '4.1rem',
-                    height: '4.1rem',
-                    padding: '2.5px',
-                    borderRadius: '999px',
-                    background: [
-                      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-                      'linear-gradient(135deg, #ff4fd8, #7c5cff)',
-                      'linear-gradient(135deg, #ffb347, #ff4fd8)',
-                      'linear-gradient(135deg, #4dd7ff, #7c5cff)',
-                    ][index],
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: '999px',
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: '#151a28',
-                      color: '#fff',
-                      fontWeight: 900,
-                    }}
-                  >
-                    {title[0]}
-                  </span>
-                </span>
+          <div style={styles.detailsGrid}>
+            <div style={styles.detailItem}>
+              <span>Profession</span>
+              <strong>
+                {profile?.profession || 'Profession not set'}
+              </strong>
+            </div>
 
-                <span style={{ fontSize: '0.7rem', fontWeight: 750 }}>
-                  {title}
-                </span>
-              </button>
-            ))}
+            <div style={styles.detailItem}>
+              <span>Account type</span>
+              <strong>
+                {profile?.account_type || 'Personal'}
+              </strong>
+            </div>
+
+            <div style={styles.detailItem}>
+              <span>Website</span>
+              <strong>
+                {profile?.website || 'Add your website'}
+              </strong>
+            </div>
+
+            <div style={styles.detailItem}>
+              <span>Location</span>
+              <strong>
+                {profile?.location || 'Location not set'}
+              </strong>
+            </div>
           </div>
         </section>
 
-        <section
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gap: '0.3rem',
-            padding: '0.3rem',
-            borderRadius: '1rem',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          {[
-            ['grid', 'Posts', Grid3X3],
-            ['reels', 'Reels', Video],
-            ['tagged', 'Tagged', TagIcon],
-          ].map(([key, label, Icon]) => (
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <span style={styles.sectionIcon}>
+              <Users size={16} />
+            </span>
+
+            <div>
+              <h2 style={styles.sectionTitle}>
+                Connections
+              </h2>
+
+              <p style={styles.sectionDescription}>
+                Manage this profile’s follower relationships.
+              </p>
+            </div>
+          </div>
+
+          <div style={styles.connectionButtons}>
             <button
-              key={key}
               type="button"
-              onClick={() => setActiveTab(key)}
-              style={{
-                minHeight: '2.8rem',
-                display: 'grid',
-                placeItems: 'center',
-                gap: '0.22rem',
-                border: 0,
-                borderRadius: '0.75rem',
-                background:
-                  activeTab === key
-                    ? 'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.12))'
-                    : 'transparent',
-                color: activeTab === key ? '#fff' : '#8f9cb8',
-                cursor: 'pointer',
-                fontSize: '0.72rem',
-                fontWeight: 850,
-              }}
+              onClick={() => openPeopleSheet('followers')}
+              style={styles.connectionButton}
             >
-              <Icon size={15} />
-              {label}
+              <Users size={15} />
+              View Followers
+              <ChevronRight size={15} />
             </button>
-          ))}
+
+            <button
+              type="button"
+              onClick={() => openPeopleSheet('following')}
+              style={styles.connectionButton}
+            >
+              <Users size={15} />
+              View Following
+              <ChevronRight size={15} />
+            </button>
+          </div>
         </section>
-
-        <ContentSection
-          title={
-            activeTab === 'grid'
-              ? 'Posts'
-              : activeTab === 'reels'
-                ? 'Reels'
-                : 'Tagged Content'
-          }
-          description={
-            activeTab === 'grid'
-              ? 'Your published photo and carousel posts.'
-              : activeTab === 'reels'
-                ? 'Your short-form videos and creator content.'
-                : 'Posts and reels where your account is tagged.'
-          }
-          icon={activeTab === 'grid' ? Grid3X3 : activeTab === 'reels' ? Video : TagIcon}
-          images={
-            activeTab === 'grid'
-              ? postImages
-              : activeTab === 'reels'
-                ? reelImages
-                : taggedImages
-          }
-          type={activeTab === 'grid' ? 'Posts' : activeTab === 'reels' ? 'Reels' : 'Tagged'}
-          onOpen={() => showMessage('Profile content opened.')}
-        />
-
-        <ContentSection
-          title="Saved Content"
-          description="Private posts and reels you saved for later."
-          icon={Bookmark}
-          images={savedImages}
-          type="Saved"
-          onOpen={() => showMessage('Saved content opened.')}
-        />
       </main>
 
       <BottomNav />
 
-      {showMenu ? (
-        <ProfileMenu
-          onClose={() => setShowMenu(false)}
-          onNavigate={(route) => {
-            setShowMenu(false);
-            navigate(route);
-          }}
-          onLogout={logout}
+      {sheetType ? (
+        <PeopleSheet
+          type={sheetType}
+          people={people}
+          viewerId={user?.id}
+          loading={peopleLoading}
+          relationshipMap={peopleRelationshipMap}
+          actionTarget={peopleActionTarget}
+          onClose={() => setSheetType(null)}
+          onFollow={handlePeopleFollow}
+          onUnfollow={handlePeopleUnfollow}
         />
       ) : null}
 
-      {message ? (
-        <div
-          role="status"
-          style={{
-            position: 'fixed',
-            right: '1rem',
-            bottom: '6.3rem',
-            left: '1rem',
-            zIndex: 1400,
-            width: 'fit-content',
-            maxWidth: 'calc(100% - 2rem)',
-            margin: '0 auto',
-            padding: '0.75rem 0.9rem',
-            borderRadius: '999px',
-            background: 'rgba(17,22,35,0.96)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: '#eaf0ff',
-            boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
-            fontSize: '0.78rem',
-            fontWeight: 750,
-          }}
-        >
-          {message}
+      {toast ? (
+        <div role="status" style={styles.toast}>
+          {toast}
 
           <button
             type="button"
-            onClick={() => setMessage('')}
-            style={{
-              marginLeft: '0.6rem',
-              border: 0,
-              background: 'transparent',
-              color: '#aab6cf',
-              cursor: 'pointer',
-            }}
+            onClick={() => setToast('')}
+            style={styles.toastClose}
             aria-label="Dismiss message"
           >
-            <X size={13} />
+            <X size={14} />
           </button>
         </div>
       ) : null}
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    paddingBottom: '6.8rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  content: {
+    width: '100%',
+    maxWidth: '900px',
+    margin: '0 auto',
+    padding: '1rem 0.9rem',
+    display: 'grid',
+    gap: '0.9rem',
+  },
+
+  loadingState: {
+    minHeight: '70vh',
+    display: 'grid',
+    placeItems: 'center',
+    alignContent: 'center',
+    gap: '0.8rem',
+  },
+
+  loadingAvatar: {
+    width: '6rem',
+    height: '6rem',
+    borderRadius: '999px',
+    background: 'rgba(124,92,255,0.2)',
+    animation:
+      'aarush-profile-loading 1.4s ease-in-out infinite',
+  },
+
+  loadingLineLarge: {
+    width: '13rem',
+    height: '0.8rem',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.1)',
+  },
+
+  loadingLineSmall: {
+    width: '8rem',
+    height: '0.6rem',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.08)',
+  },
+
+  loadingCard: {
+    width: 'min(100%, 32rem)',
+    height: '12rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(255,255,255,0.06)',
+  },
+
+  errorState: {
+    minHeight: '70vh',
+    display: 'grid',
+    placeItems: 'center',
+    alignContent: 'center',
+    gap: '0.7rem',
+    padding: '1rem',
+    textAlign: 'center',
+  },
+
+  guestNotice: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 0.8rem',
+    borderRadius: '0.85rem',
+    background: 'rgba(255,210,125,0.08)',
+    border: '1px solid rgba(255,210,125,0.2)',
+    color: '#ffd27d',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+  },
+
+  profileCard: {
+    padding: '1rem',
+    borderRadius: '1.35rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.28)',
+  },
+
+  profileTop: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '1rem',
+  },
+
+  avatarWrapper: {
+    flexShrink: 0,
+  },
+
+  avatar: {
+    width: '6.4rem',
+    height: '6.4rem',
+    objectFit: 'cover',
+    borderRadius: '999px',
+    border: '3px solid #7c5cff',
+    boxShadow: '0 0 28px rgba(124,92,255,0.28)',
+  },
+
+  placeholderAvatar: {
+    width: '6.4rem',
+    height: '6.4rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '999px',
+    border: '3px solid #7c5cff',
+    background:
+      'linear-gradient(135deg, #18213a, #2b2048)',
+    color: '#dce8ff',
+    boxShadow: '0 0 28px rgba(124,92,255,0.28)',
+  },
+
+  identity: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  usernameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+  },
+
+  fullName: {
+    display: 'block',
+    marginTop: '0.2rem',
+    color: '#cbd6ec',
+    fontSize: '0.82rem',
+    fontWeight: 750,
+  },
+
+  accountType: {
+    display: 'inline-block',
+    marginTop: '0.35rem',
+    padding: '0.2rem 0.4rem',
+    borderRadius: '999px',
+    background: 'rgba(77,215,255,0.1)',
+    color: '#9deeff',
+    fontSize: '0.58rem',
+    fontWeight: 800,
+  },
+
+  bio: {
+    margin: '0.45rem 0 0',
+    color: '#d5def1',
+    fontSize: '0.77rem',
+    lineHeight: 1.5,
+  },
+
+  metaList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.45rem',
+    marginTop: '0.45rem',
+    color: '#91a0bc',
+    fontSize: '0.65rem',
+    fontWeight: 700,
+  },
+
+  moreButton: {
+    width: '2.2rem',
+    height: '2.2rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.04)',
+    color: '#cbd6ec',
+    cursor: 'pointer',
+  },
+
+  profileStatus: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+    marginTop: '0.85rem',
+  },
+
+  visibilityBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.3rem 0.45rem',
+    borderRadius: '999px',
+    fontSize: '0.6rem',
+    fontWeight: 800,
+  },
+
+  publicBadge: {
+    background: 'rgba(130,233,193,0.12)',
+    color: '#82e9c1',
+  },
+
+  privateBadge: {
+    background: 'rgba(255,210,125,0.12)',
+    color: '#ffd27d',
+  },
+
+  guestBadge: {
+    padding: '0.3rem 0.45rem',
+    borderRadius: '999px',
+    background: 'rgba(124,92,255,0.14)',
+    color: '#c8bcff',
+    fontSize: '0.6rem',
+    fontWeight: 800,
+  },
+
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '0.4rem',
+    marginTop: '1rem',
+    paddingTop: '0.9rem',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+  },
+
+  statButton: {
+    display: 'grid',
+    gap: '0.2rem',
+    padding: '0.2rem',
+    border: 0,
+    background: 'transparent',
+    color: '#f4f7ff',
+    textAlign: 'center',
+    cursor: 'pointer',
+  },
+
+  actionRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    marginTop: '0.9rem',
+  },
+
+  primaryAction: {
+    minHeight: '2.7rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.4rem',
+    flex: '1 1 10rem',
+    border: 0,
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    fontSize: '0.76rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  followButton: {
+    minHeight: '2.7rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.4rem',
+    flex: '1 1 10rem',
+    border: 0,
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    fontSize: '0.76rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  followingButton: {
+    border: '1px solid rgba(130,233,193,0.28)',
+    background: 'rgba(130,233,193,0.1)',
+    color: '#82e9c1',
+  },
+
+  secondaryAction: {
+    minHeight: '2.7rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.4rem',
+    flex: '1 1 7rem',
+    border: '1px solid rgba(124,92,255,0.28)',
+    borderRadius: '999px',
+    background: 'rgba(124,92,255,0.1)',
+    color: '#eaf0ff',
+    fontSize: '0.76rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  iconAction: {
+    width: '2.7rem',
+    height: '2.7rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#eaf0ff',
+    cursor: 'pointer',
+  },
+
+  disabledButton: {
+    opacity: 0.55,
+    cursor: 'not-allowed',
+  },
+
+  signInButton: {
+    width: '100%',
+    minHeight: '2.6rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.35rem',
+    marginTop: '0.65rem',
+    border: '1px solid rgba(255,210,125,0.24)',
+    borderRadius: '999px',
+    background: 'rgba(255,210,125,0.08)',
+    color: '#ffd27d',
+    fontSize: '0.68rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  section: {
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+  },
+
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    marginBottom: '0.8rem',
+  },
+
+  sectionIcon: {
+    width: '2.15rem',
+    height: '2.15rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.7rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.12))',
+    color: '#dce8ff',
+  },
+
+  sectionTitle: {
+    margin: 0,
+    fontSize: '0.92rem',
+    fontWeight: 850,
+  },
+
+  sectionDescription: {
+    margin: '0.2rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.7rem',
+  },
+
+  detailsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.5rem',
+  },
+
+  detailItem: {
+    display: 'grid',
+    gap: '0.3rem',
+    minHeight: '3.2rem',
+    padding: '0.7rem',
+    borderRadius: '0.8rem',
+    background: 'rgba(255,255,255,0.04)',
+  },
+
+  detailItemSpan: {
+    color: '#96a3bf',
+    fontSize: '0.64rem',
+  },
+
+  detailItemStrong: {
+    color: '#dce5f8',
+    fontSize: '0.7rem',
+  },
+
+  connectionButtons: {
+    display: 'grid',
+    gap: '0.45rem',
+  },
+
+  connectionButton: {
+    minHeight: '2.65rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    padding: '0 0.7rem',
+    border: '1px solid rgba(124,92,255,0.22)',
+    borderRadius: '0.8rem',
+    background: 'rgba(124,92,255,0.08)',
+    color: '#dce5f8',
+    fontSize: '0.7rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  connectionButtonChevron: {
+    marginLeft: 'auto',
+  },
+
+  sheetBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1200,
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    padding: '0.8rem',
+    background: 'rgba(2,5,10,0.68)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+  },
+
+  sheet: {
+    width: 'min(100%, 540px)',
+    maxHeight: '82vh',
+    overflowY: 'auto',
+    padding: '0.9rem',
+    borderRadius: '1.35rem 1.35rem 1rem 1rem',
+    background:
+      'linear-gradient(180deg, rgba(20,26,42,0.99), rgba(9,13,22,0.99))',
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 -20px 70px rgba(0,0,0,0.45)',
+  },
+
+  sheetHandle: {
+    width: '2.8rem',
+    height: '0.25rem',
+    margin: '0 auto 0.8rem',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.2)',
+  },
+
+  sheetHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '0.6rem',
+    marginBottom: '0.8rem',
+  },
+
+  sheetHeaderH2: {
+    margin: 0,
+    fontSize: '1rem',
+  },
+
+  sheetHeaderP: {
+    margin: '0.25rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.7rem',
+  },
+
+  closeButton: {
+    width: '2.3rem',
+    height: '2.3rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#fff',
+    cursor: 'pointer',
+  },
+
+  peopleList: {
+    display: 'grid',
+    gap: '0.45rem',
+  },
+
+  personRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.6rem',
+    padding: '0.65rem',
+    borderRadius: '0.9rem',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+
+  personAvatar: {
+    width: '2.6rem',
+    height: '2.6rem',
+    objectFit: 'cover',
+    borderRadius: '999px',
+    border: '1px solid rgba(124,92,255,0.5)',
+  },
+
+  personPlaceholder: {
+    width: '2.6rem',
+    height: '2.6rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '999px',
+    background: '#222b43',
+    color: '#cbd6ec',
+  },
+
+  personCopy: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '0.15rem',
+    flex: 1,
+  },
+
+  personCopyStrong: {
+    overflow: 'hidden',
+    color: '#eaf0ff',
+    fontSize: '0.72rem',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  personCopySpan: {
+    color: '#8f9cb8',
+    fontSize: '0.64rem',
+  },
+
+  personAction: {
+    minWidth: '4.9rem',
+    minHeight: '2.1rem',
+    border: 0,
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    fontSize: '0.63rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  personFollowingAction: {
+    border: '1px solid rgba(130,233,193,0.25)',
+    background: 'rgba(130,233,193,0.1)',
+    color: '#82e9c1',
+  },
+
+  sheetLoading: {
+    padding: '2rem 0',
+    color: '#9deeff',
+    textAlign: 'center',
+    fontSize: '0.74rem',
+  },
+
+  emptyPeople: {
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.5rem',
+    padding: '2rem 0',
+    color: '#96a3bf',
+    fontSize: '0.74rem',
+  },
+
+  toast: {
+    position: 'fixed',
+    right: '1rem',
+    bottom: '6.2rem',
+    left: '1rem',
+    zIndex: 1400,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+    width: 'fit-content',
+    maxWidth: 'calc(100% - 2rem)',
+    margin: '0 auto',
+    padding: '0.75rem 0.9rem',
+    borderRadius: '999px',
+    background: 'rgba(17,22,35,0.97)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    color: '#eaf0ff',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+  },
+
+  toastClose: {
+    width: '1.6rem',
+    height: '1.6rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#aab6cf',
+    cursor: 'pointer',
+  },
+};

@@ -4,9 +4,12 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
+  useNavigate,
 } from 'react-router-dom';
-import { Lock, ShieldCheck } from 'lucide-react';
-
+import { Lock, ShieldCheck, UserRound } from 'lucide-react';
+import ControlsPage from './pages/ControlsPage';
+import HelpPage from './pages/HelpPage';
 import Splash from './pages/Splash';
 import Welcome from './pages/Welcome';
 import Login from './pages/Login';
@@ -58,6 +61,83 @@ import './App.css';
 
 const ONE_TAP_LOCK_KEY = 'aarush_one_tap_lock_enabled';
 const GAZE_LOCK_KEY = 'aarush_gaze_lock_enabled';
+
+const GUEST_KEYS = {
+  isGuest: 'aarush_is_guest',
+  guestSession: 'aarush_guest_session',
+  guestProfile: 'aarush_guest_profile',
+};
+
+const GUEST_RESTRICTED_ROUTES = [
+  '/upload',
+  '/chats',
+  '/privacy',
+  '/privacy-center',
+  '/privacy-dashboard',
+  '/privacy-innovations',
+  '/emergency-privacy',
+  '/shoulder-surf',
+  '/stealth-privacy',
+  '/private-safe-settings',
+  '/security-center',
+  '/security-settings',
+  '/app-lock-settings',
+  '/app-lock',
+  '/call-privacy-center',
+  '/aarush-ai-security',
+  '/memories-vault',
+  '/workspace',
+  '/monetization-center',
+  '/pricing-plans',
+  '/payout-settings',
+  '/account-switch',
+  '/session-management',
+  '/logout',
+  '/profile-settings',
+  '/profile/settings',
+  '/profile/privacy',
+  '/profile/security',
+  '/profile/controls',
+  '/profile/notifications',
+  '/profile/chats',
+  '/profile/time-limited',
+  '/time-limited-profile',
+  '/profile/screen-recording',
+  '/screen-recording',
+  '/profile/screenshot-shield',
+  '/screenshot-shield',
+  '/profile/decoy-vault',
+  '/decoy-vault',
+];
+
+function isGuestSessionActive() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return (
+    window.localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
+    window.localStorage.getItem(GUEST_KEYS.guestSession) === 'active'
+  );
+}
+
+function clearGuestSession() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(GUEST_KEYS.isGuest);
+  window.localStorage.removeItem(GUEST_KEYS.guestSession);
+  window.localStorage.removeItem(GUEST_KEYS.guestProfile);
+}
+
+function isRestrictedGuestRoute(pathname) {
+  return GUEST_RESTRICTED_ROUTES.some(
+    (route) =>
+      pathname === route ||
+      pathname.startsWith(`${route}/`)
+  );
+}
 
 function LoadingScreen() {
   return (
@@ -135,17 +215,126 @@ function LoadingScreen() {
   );
 }
 
+function GuestAccessRequired() {
+  const navigate = useNavigate();
+
+  const logoutGuest = () => {
+    clearGuestSession();
+    navigate('/login', { replace: true });
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '1rem',
+        background:
+          'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+        color: '#f4f7ff',
+      }}
+    >
+      <main
+        style={{
+          width: 'min(100%, 430px)',
+          padding: '1.5rem',
+          borderRadius: '1.5rem',
+          background: 'rgba(15,19,30,0.94)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          boxShadow: '0 24px 70px rgba(0,0,0,0.42)',
+          textAlign: 'center',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
+        <div
+          style={{
+            width: '4rem',
+            height: '4rem',
+            margin: '0 auto 1rem',
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: '999px',
+            background:
+              'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+            color: '#fff',
+          }}
+        >
+          <UserRound size={26} />
+        </div>
+
+        <h1 style={{ margin: 0, fontSize: '1.2rem' }}>
+          Sign in to continue
+        </h1>
+
+        <p
+          style={{
+            margin: '0.65rem 0 1.25rem',
+            color: '#9aa7c1',
+            fontSize: '0.84rem',
+            lineHeight: 1.55,
+          }}
+        >
+          Create an Aarush account to use this feature.
+        </p>
+
+        <div style={{ display: 'grid', gap: '0.55rem' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            style={guestStyles.primary}
+          >
+            Log In
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/signup')}
+            style={guestStyles.secondary}
+          >
+            Create Account
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/home')}
+            style={guestStyles.secondary}
+          >
+            Continue Browsing
+          </button>
+
+          <button
+            type="button"
+            onClick={logoutGuest}
+            style={guestStyles.danger}
+          >
+            Logout
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 function ProtectedRoute({
   session,
   locked,
   children,
   allowWhileLocked = false,
 }) {
-  if (!session) {
+  const location = useLocation();
+  const guest = isGuestSessionActive();
+
+  if (!session && !guest) {
     return <Navigate to="/welcome" replace />;
   }
 
-  if (locked && !allowWhileLocked) {
+  if (guest && isRestrictedGuestRoute(location.pathname)) {
+    return <GuestAccessRequired />;
+  }
+
+  if (locked && !allowWhileLocked && !guest) {
     return <Navigate to="/lock" replace />;
   }
 
@@ -153,7 +342,7 @@ function ProtectedRoute({
 }
 
 function PublicOnlyRoute({ session, children }) {
-  if (session) {
+  if (session || isGuestSessionActive()) {
     return <Navigate to="/home" replace />;
   }
 
@@ -202,7 +391,6 @@ function LockPage({ onUnlock }) {
             background:
               'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
             color: '#fff',
-            boxShadow: '0 0 34px rgba(124,92,255,0.3)',
           }}
         >
           <Lock size={28} />
@@ -226,18 +414,7 @@ function LockPage({ onUnlock }) {
         <button
           type="button"
           onClick={handleUnlock}
-          style={{
-            width: '100%',
-            border: 0,
-            borderRadius: '999px',
-            padding: '0.85rem 1rem',
-            background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-            color: '#fff',
-            fontSize: '0.86rem',
-            fontWeight: 850,
-            cursor: 'pointer',
-            boxShadow: '0 12px 26px rgba(124,92,255,0.2)',
-          }}
+          style={guestStyles.primary}
         >
           Unlock Aarush
         </button>
@@ -264,13 +441,32 @@ function RouteElement({
 }
 
 function AppRoutes({ session, locked, onUnlock }) {
+  const protectedRoute = (
+    path,
+    component,
+    options = {}
+  ) => (
+    <Route
+      key={path}
+      path={path}
+      element={
+        <RouteElement
+          session={session}
+          locked={locked}
+          component={component}
+          allowWhileLocked={options.allowWhileLocked}
+        />
+      }
+    />
+  );
+
   return (
     <Routes>
       <Route
         path="/"
         element={
-          session ? (
-            locked ? (
+          session || isGuestSessionActive() ? (
+            locked && !isGuestSessionActive() ? (
               <Navigate to="/lock" replace />
             ) : (
               <Navigate to="/home" replace />
@@ -280,7 +476,27 @@ function AppRoutes({ session, locked, onUnlock }) {
           )
         }
       />
+<Route
+  path="/controls"
+  element={
+    <RouteElement
+      session={session}
+      locked={locked}
+      component={<ControlsPage />}
+    />
+  }
+/>
 
+<Route
+  path="/help"
+  element={
+    <RouteElement
+      session={session}
+      locked={locked}
+      component={<HelpPage />}
+    />
+  }
+/>
       <Route
         path="/splash"
         element={
@@ -326,562 +542,81 @@ function AppRoutes({ session, locked, onUnlock }) {
         }
       />
 
-      <Route
-        path="/home"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<HomeFeed />}
-          />
-        }
-      />
+      {protectedRoute('/home', <HomeFeed />)}
+      {protectedRoute('/reels', <ReelsPage />)}
+      {protectedRoute('/search', <SearchPage />)}
+      {protectedRoute('/upload', <UploadPage />)}
 
-      <Route
-        path="/reels"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ReelsPage />}
-          />
-        }
-      />
+      {protectedRoute('/profile', <ProfilePage />)}
+      {protectedRoute('/profile-settings', <ProfileSettings />)}
+      {protectedRoute('/profile/time-limited', <ProfileSettings />)}
+      {protectedRoute('/time-limited-profile', <ProfileSettings />)}
+      {protectedRoute('/creator-analytics', <CreatorAnalytics />)}
+      {protectedRoute('/accessibility-settings', <AccessibilitySettings />)}
+      {protectedRoute('/accessibility', <AccessibilitySettings />)}
+      {protectedRoute('/language-settings', <LanguageSettings />)}
+      {protectedRoute('/language', <LanguageSettings />)}
 
-      <Route
-        path="/search"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SearchPage />}
-          />
-        }
-      />
+      {protectedRoute('/notifications', <NotificationsPage />)}
+      {protectedRoute('/notification-center', <NotificationCenter />)}
+      {protectedRoute('/notification-privacy', <NotificationPrivacy />)}
+      {protectedRoute('/notification-settings', <NotificationPrivacy />)}
 
-      <Route
-        path="/upload"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<UploadPage />}
-          />
-        }
-      />
+      {protectedRoute('/chats', <ChatsPage />)}
+      {protectedRoute('/chats/:chatId', <ChatConversation />)}
 
-      <Route
-        path="/profile"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ProfilePage />}
-          />
-        }
-      />
+      {protectedRoute('/privacy', <PrivacyCenter />)}
+      {protectedRoute('/privacy-center', <PrivacyCenter />)}
+      {protectedRoute('/privacy-dashboard', <PrivacyDashboard />)}
+      {protectedRoute('/privacy-innovations', <PrivacyInnovations />)}
+      {protectedRoute('/emergency-privacy', <EmergencyPrivacy />)}
+      {protectedRoute('/shoulder-surf', <ShoulderSurf />)}
+      {protectedRoute('/stealth-privacy', <StealthPrivacy />)}
+      {protectedRoute('/private-safe-settings', <PrivateSafeSettings />)}
+      {protectedRoute('/decoy-vault', <PrivateSafeSettings />)}
+      {protectedRoute('/profile/decoy-vault', <PrivateSafeSettings />)}
 
-      <Route
-        path="/profile-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ProfileSettings />}
-          />
-        }
-      />
+      {protectedRoute('/security-center', <SecurityCenter />)}
+      {protectedRoute('/security-settings', <SecurityCenter />)}
+      {protectedRoute('/profile/screen-recording', <SecurityCenter />)}
+      {protectedRoute('/screen-recording', <SecurityCenter />)}
+      {protectedRoute('/profile/screenshot-shield', <SecurityCenter />)}
+      {protectedRoute('/screenshot-shield', <SecurityCenter />)}
 
-      <Route
-        path="/profile/time-limited"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ProfileSettings />}
-          />
-        }
-      />
+      {protectedRoute('/app-lock-settings', <AppLockSettings />)}
+      {protectedRoute('/app-lock', <AppLockSettings />)}
+      {protectedRoute('/call-privacy-center', <CallPrivacyCenter />)}
+      {protectedRoute('/call-privacy', <CallPrivacyCenter />)}
+      {protectedRoute('/aarush-ai-security', <AarushAISecurity />)}
+      {protectedRoute('/aarush-ai', <AarushAISecurity />)}
+      {protectedRoute('/memories-vault', <MemoriesVault />)}
+      {protectedRoute('/vault', <MemoriesVault />)}
 
-      <Route
-        path="/time-limited-profile"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ProfileSettings />}
-          />
-        }
-      />
+      {protectedRoute('/monetization-center', <MonetizationCenter />)}
+      {protectedRoute('/pricing-plans', <PricingPlans />)}
+      {protectedRoute('/payout-settings', <PayoutSettings />)}
 
-      <Route
-        path="/profile/screen-recording"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SecurityCenter />}
-          />
-        }
-      />
+      {protectedRoute('/account-switch', <AccountSwitchPage />)}
+      {protectedRoute('/session-management', <LogoutSessionPage />)}
+      {protectedRoute('/logout', <LogoutSessionPage />)}
 
-      <Route
-        path="/screen-recording"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SecurityCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/profile/screenshot-shield"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SecurityCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/screenshot-shield"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SecurityCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/profile/decoy-vault"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivateSafeSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/decoy-vault"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivateSafeSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/creator-analytics"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<CreatorAnalytics />}
-          />
-        }
-      />
-
-      <Route
-        path="/accessibility-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AccessibilitySettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/accessibility"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AccessibilitySettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/language-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<LanguageSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/language"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<LanguageSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/notifications"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<NotificationsPage />}
-          />
-        }
-      />
-
-      <Route
-        path="/notification-center"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<NotificationCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/notification-privacy"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<NotificationPrivacy />}
-          />
-        }
-      />
-
-      <Route
-        path="/notification-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<NotificationPrivacy />}
-          />
-        }
-      />
-
-      <Route
-        path="/chats"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ChatsPage />}
-          />
-        }
-      />
-
-      <Route
-        path="/chats/:chatId"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ChatConversation />}
-          />
-        }
-      />
-
-      <Route
-        path="/privacy"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivacyCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/privacy-center"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivacyCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/privacy-dashboard"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivacyDashboard />}
-          />
-        }
-      />
-
-      <Route
-        path="/privacy-innovations"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivacyInnovations />}
-          />
-        }
-      />
-
-      <Route
-        path="/emergency-privacy"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<EmergencyPrivacy />}
-          />
-        }
-      />
-
-      <Route
-        path="/shoulder-surf"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<ShoulderSurf />}
-          />
-        }
-      />
-
-      <Route
-        path="/stealth-privacy"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<StealthPrivacy />}
-          />
-        }
-      />
-
-      <Route
-        path="/private-safe-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PrivateSafeSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/security-center"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SecurityCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/security-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<SecurityCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/app-lock-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AppLockSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/app-lock"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AppLockSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/call-privacy-center"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<CallPrivacyCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/call-privacy"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<CallPrivacyCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/aarush-ai-security"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AarushAISecurity />}
-          />
-        }
-      />
-
-      <Route
-        path="/aarush-ai"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AarushAISecurity />}
-          />
-        }
-      />
-
-      <Route
-        path="/memories-vault"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<MemoriesVault />}
-          />
-        }
-      />
-
-      <Route
-        path="/vault"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<MemoriesVault />}
-          />
-        }
-      />
-
-      <Route
-        path="/monetization-center"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<MonetizationCenter />}
-          />
-        }
-      />
-
-      <Route
-        path="/pricing-plans"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PricingPlans />}
-          />
-        }
-      />
-
-      <Route
-        path="/payout-settings"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<PayoutSettings />}
-          />
-        }
-      />
-
-      <Route
-        path="/account-switch"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<AccountSwitchPage />}
-          />
-        }
-      />
-
-      <Route
-        path="/session-management"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<LogoutSessionPage />}
-          />
-        }
-      />
-
-      <Route
-        path="/logout"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            component={<LogoutSessionPage />}
-          />
-        }
-      />
-
-      <Route
-        path="/lock"
-        element={
-          <RouteElement
-            session={session}
-            locked={locked}
-            allowWhileLocked
-            component={<LockPage onUnlock={onUnlock} />}
-          />
-        }
-      />
+      {protectedRoute(
+        '/lock',
+        <LockPage onUnlock={onUnlock} />,
+        { allowWhileLocked: true }
+      )}
 
       <Route
         path="*"
         element={
           <Navigate
-            to={session ? (locked ? '/lock' : '/home') : '/welcome'}
+            to={
+              session || isGuestSessionActive()
+                ? locked && !isGuestSessionActive()
+                  ? '/lock'
+                  : '/home'
+                : '/welcome'
+            }
             replace
           />
         }
@@ -900,6 +635,7 @@ export default function App() {
 
     const restoreSession = async () => {
       try {
+        const guest = isGuestSessionActive();
         const { data, error } =
           await supabase.auth.getSession();
 
@@ -907,10 +643,15 @@ export default function App() {
           return;
         }
 
-        setSession(error ? null : data.session || null);
-        setLocked(
-          localStorage.getItem(ONE_TAP_LOCK_KEY) === 'true'
-        );
+        if (guest) {
+          setSession(null);
+          setLocked(false);
+        } else {
+          setSession(error ? null : data.session || null);
+          setLocked(
+            localStorage.getItem(ONE_TAP_LOCK_KEY) === 'true'
+          );
+        }
       } catch {
         if (mounted) {
           setSession(null);
@@ -930,6 +671,12 @@ export default function App() {
     } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
         if (!mounted) {
+          return;
+        }
+
+        if (isGuestSessionActive()) {
+          setSession(null);
+          setLocked(false);
           return;
         }
 
@@ -981,3 +728,45 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
+const guestStyles = {
+  primary: {
+    width: '100%',
+    minHeight: '2.75rem',
+    border: 0,
+    borderRadius: '999px',
+    padding: '0.75rem 1rem',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    fontSize: '0.82rem',
+    fontWeight: 850,
+    cursor: 'pointer',
+  },
+
+  secondary: {
+    width: '100%',
+    minHeight: '2.75rem',
+    border: '1px solid rgba(124,92,255,0.3)',
+    borderRadius: '999px',
+    padding: '0.75rem 1rem',
+    background: 'rgba(124,92,255,0.12)',
+    color: '#eaf0ff',
+    fontSize: '0.82rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  danger: {
+    width: '100%',
+    minHeight: '2.75rem',
+    border: '1px solid rgba(255,79,122,0.22)',
+    borderRadius: '999px',
+    padding: '0.75rem 1rem',
+    background: 'rgba(255,79,122,0.08)',
+    color: '#ffb1c8',
+    fontSize: '0.82rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+};

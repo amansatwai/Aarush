@@ -1,9 +1,7 @@
-// src/pages/Login.jsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { UserRound } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout';
-import BackButton from '../components/BackButton';
 import AuthInput from '../components/AuthInput';
 import LoadingButton from '../components/LoadingButton';
 import { authApi } from '../lib/supabase';
@@ -16,42 +14,49 @@ const GUEST_KEYS = {
 };
 
 export default function Login() {
-  const navigate = useNavigate();
   const [form, setForm] = useState({
     email: '',
     password: '',
   });
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
 
   const validate = () => {
-    const next = {};
+    const nextErrors = {};
 
     if (!form.email.trim()) {
-      next.email = 'Email is required';
+      nextErrors.email = 'Email is required';
     } else if (!/^\S+@\S+\.\S+$/.test(form.email)) {
-      next.email = 'Enter a valid email';
+      nextErrors.email = 'Enter a valid email';
     }
 
     if (!form.password) {
-      next.password = 'Password is required';
+      nextErrors.password = 'Password is required';
     } else if (form.password.length < 6) {
-      next.password = 'Password must be at least 6 characters';
+      nextErrors.password = 'Password must be at least 6 characters';
     }
 
-    setErrors(next);
-    return Object.keys(next).length === 0;
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const onChange = (event) => {
+  const handleChange = (event) => {
+    const { name, value } = event.target;
     setForm((previous) => ({
       ...previous,
-      [event.target.name]: event.target.value,
+      [name]: value,
     }));
   };
 
-  const submit = async (event) => {
+  const clearGuestSession = () => {
+    localStorage.removeItem(GUEST_KEYS.isGuest);
+    localStorage.removeItem(GUEST_KEYS.guestSession);
+    localStorage.removeItem(GUEST_KEYS.guestProfile);
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setServerError('');
 
@@ -61,13 +66,12 @@ export default function Login() {
 
     try {
       setLoading(true);
-
-      localStorage.removeItem(GUEST_KEYS.isGuest);
-      localStorage.removeItem(GUEST_KEYS.guestSession);
-      localStorage.removeItem(GUEST_KEYS.guestProfile);
+      clearGuestSession();
 
       await authApi.signIn(form);
-      navigate('/', { replace: true });
+
+      // Reload so App.jsx restores the authenticated session
+      window.location.replace('/home');
     } catch (error) {
       setServerError(error.message || 'Login failed');
     } finally {
@@ -75,14 +79,10 @@ export default function Login() {
     }
   };
 
-  const google = async () => {
+  const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-
-      localStorage.removeItem(GUEST_KEYS.isGuest);
-      localStorage.removeItem(GUEST_KEYS.guestSession);
-      localStorage.removeItem(GUEST_KEYS.guestProfile);
-
+      clearGuestSession();
       await authApi.signInWithGoogle();
     } catch (error) {
       setServerError(error.message || 'Google login failed');
@@ -90,45 +90,36 @@ export default function Login() {
     }
   };
 
-  const continueAsGuest = () => {
+  const handleGuestLogin = () => {
     const guestProfile = {
       displayName: 'Guest User',
       username: '@guest',
       accountType: 'guest',
-      avatar: 'default-guest-avatar',
     };
 
     localStorage.setItem(GUEST_KEYS.isGuest, 'true');
-    localStorage.setItem(
-      GUEST_KEYS.guestSession,
-      JSON.stringify({
-        active: true,
-        accountType: 'guest',
-        createdAt: new Date().toISOString(),
-      })
-    );
+    localStorage.setItem(GUEST_KEYS.guestSession, 'active');
     localStorage.setItem(
       GUEST_KEYS.guestProfile,
       JSON.stringify(guestProfile)
     );
 
-    navigate('/home', { replace: true });
+    // Force App.jsx to detect the guest session
+    window.location.replace('/home');
   };
 
   return (
     <AuthLayout
-      title="Login"
-      subtitle="Access your Aarush account"
+      title="Welcome Back"
+      subtitle="Sign in to continue your Aarush journey."
     >
-      <BackButton to="/welcome" />
-
-      <form onSubmit={submit}>
+      <form onSubmit={handleSubmit}>
         <AuthInput
           name="email"
           label="Email"
           type="email"
           value={form.email}
-          onChange={onChange}
+          onChange={handleChange}
           placeholder="you@example.com"
           autoComplete="email"
           error={errors.email}
@@ -139,7 +130,7 @@ export default function Login() {
           label="Password"
           type="password"
           value={form.password}
-          onChange={onChange}
+          onChange={handleChange}
           placeholder="Your password"
           autoComplete="current-password"
           error={errors.password}
@@ -155,28 +146,30 @@ export default function Login() {
       </form>
 
       <button
-        className="google-btn full"
-        onClick={google}
-        disabled={loading}
-        type="button"
-      >
-        Continue with Google
-      </button>
-
-      <button
         type="button"
         className="google-btn full"
-        onClick={continueAsGuest}
+        onClick={handleGuestLogin}
         disabled={loading}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '0.45rem',
+          marginTop: '0.75rem',
         }}
       >
         <UserRound size={17} />
         Continue as Guest
+      </button>
+
+      <button
+        type="button"
+        className="google-btn full"
+        onClick={handleGoogleLogin}
+        disabled={loading}
+        style={{ marginTop: '0.75rem' }}
+      >
+        Continue with Google
       </button>
 
       <div
@@ -184,7 +177,7 @@ export default function Login() {
           display: 'flex',
           alignItems: 'center',
           gap: '0.7rem',
-          margin: '0.8rem 0',
+          margin: '1rem 0',
           color: '#8592ad',
           fontSize: '0.72rem',
           fontWeight: 750,
@@ -208,8 +201,8 @@ export default function Login() {
       </div>
 
       <div className="auth-links">
-        <Link to="/forgot-password">Forgot Password?</Link>
         <Link to="/signup">Create New Account</Link>
+        <Link to="/forgot-password">Forgot Password?</Link>
       </div>
     </AuthLayout>
   );

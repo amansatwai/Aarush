@@ -1,1711 +1,1411 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import TopBar from '../components/TopBar';
-import BottomNav from '../components/BottomNav';
 import {
+  Activity,
   AlertTriangle,
-  BarChart3,
+  Ban,
   Bell,
-  Check,
-  ChevronLeft,
+  CheckCircle2,
   ChevronRight,
   Clock3,
-  CloudDownload,
-  Eye,
+  Database,
+  Download,
+  FileDown,
+  Fingerprint,
   Globe2,
   Laptop,
-  Lock,
-  MapPin,
-  MonitorSmartphone,
-  Navigation,
-  Radio,
+  LockKeyhole,
+  LogOut,
+  Monitor,
   RefreshCw,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   UserCheck,
-  Users,
-  Video,
   Wifi,
   X,
 } from 'lucide-react';
+import TopBar from '../components/TopBar';
+import BottomNav from '../components/BottomNav';
 
-const timerOptions = [
-  '15 minutes',
-  '30 minutes',
-  '1 hour',
-  '6 hours',
-  '12 hours',
-  '24 hours',
-  '3 days',
-  '7 days',
-  'Never',
-];
-
-const activeSessions = [
+const INITIAL_SESSIONS = [
   {
-    id: 'session-1',
+    id: 'session-current',
     name: 'Windows Laptop',
-    type: 'Laptop',
-    operatingSystem: 'Windows 11',
-    browser: 'Chrome',
-    current: true,
-    trusted: true,
-    lastActivity: 'Active now',
-    loginTime: 'Today, 10:42 AM',
+    type: 'Desktop',
+    os: 'Windows 11',
+    browser: 'Chrome 125',
     location: 'Ghaziabad, India',
-    score: 100,
-    duration: '2h 14m',
-    country: 'India',
-    city: 'Ghaziabad',
-    status: 'Online',
-    icon: Laptop,
+    loginTime: 'Today, 08:12 AM',
+    lastActivity: 'Active now',
+    ip: '103.•••.••.42',
+    method: 'Password + device verification',
+    trusted: true,
+    current: true,
+    model: 'Dell Inspiron',
+    manufacturer: 'Dell',
+    osVersion: 'Windows 11 23H2',
+    browserVersion: 'Chrome 125.0',
+    resolution: '1920 × 1080',
+    created: 'June 01, 2026',
   },
   {
-    id: 'session-2',
+    id: 'session-android',
     name: 'Android Phone',
     type: 'Mobile',
-    operatingSystem: 'Android 14',
+    os: 'Android',
     browser: 'Chrome Mobile',
-    current: false,
-    trusted: true,
-    lastActivity: '12 minutes ago',
-    loginTime: 'Yesterday, 8:18 PM',
     location: 'New Delhi, India',
-    score: 82,
-    duration: '14h 38m',
-    country: 'India',
-    city: 'New Delhi',
-    status: 'Online',
-    icon: Smartphone,
+    loginTime: 'Yesterday, 10:42 PM',
+    lastActivity: '18 minutes ago',
+    ip: '117.•••.••.81',
+    method: 'Google sign-in',
+    trusted: true,
+    current: false,
+    model: 'Pixel device',
+    manufacturer: 'Google',
+    osVersion: 'Android 14',
+    browserVersion: 'Chrome Mobile',
+    resolution: '1080 × 2400',
+    created: 'May 27, 2026',
   },
   {
-    id: 'session-3',
+    id: 'session-iphone',
     name: 'iPhone',
     type: 'Mobile',
-    operatingSystem: 'iOS 18',
+    os: 'iOS',
     browser: 'Safari',
-    current: false,
+    location: 'Mumbai, India',
+    loginTime: 'May 18, 2026, 04:18 PM',
+    lastActivity: 'May 18, 2026',
+    ip: '49.•••.••.19',
+    method: 'Password',
     trusted: false,
-    lastActivity: '2 hours ago',
-    loginTime: 'Monday, 6:04 PM',
-    location: 'Mumbai, India',
-    score: 54,
-    duration: '1d 3h',
-    country: 'India',
-    city: 'Mumbai',
-    status: 'Syncing',
-    icon: Smartphone,
+    current: false,
+    model: 'iPhone',
+    manufacturer: 'Apple',
+    osVersion: 'iOS 17',
+    browserVersion: 'Safari 17',
+    resolution: '1179 × 2556',
+    created: 'May 18, 2026',
   },
 ];
 
-const sessionHistory = [
-  {
-    id: 'history-1',
-    event: 'Login',
-    time: '10:42 AM',
-    date: 'Today',
-    device: 'Windows Laptop',
-    location: 'Ghaziabad, India',
-    status: 'Successful',
-    color: '#72e9b8',
-  },
-  {
-    id: 'history-2',
-    event: 'Device Trusted',
-    time: 'Yesterday, 8:22 PM',
-    date: 'Yesterday',
-    device: 'Android Phone',
-    location: 'New Delhi, India',
-    status: 'Approved',
-    color: '#8edfff',
-  },
-  {
-    id: 'history-3',
-    event: 'Remote Logout',
-    time: 'Monday, 11:02 PM',
-    date: 'Monday',
-    device: 'Older iPhone',
-    location: 'Mumbai, India',
-    status: 'Completed',
-    color: '#ffd07d',
-  },
-  {
-    id: 'history-4',
-    event: 'Password Changed',
-    time: 'Sunday, 4:25 PM',
-    date: 'Sunday',
-    device: 'Windows Laptop',
-    location: 'Ghaziabad, India',
-    status: 'Protected',
-    color: '#72e9b8',
-  },
+const LOGIN_HISTORY = [
+  ['Windows Laptop', 'Chrome', 'Today', '08:12 AM', 'Ghaziabad, India', '103.•••.••.42', 'Password'],
+  ['Android Phone', 'Chrome', 'Yesterday', '10:42 PM', 'New Delhi, India', '117.•••.••.81', 'Google'],
+  ['iPhone', 'Safari', 'May 18, 2026', '04:18 PM', 'Mumbai, India', '49.•••.••.19', 'Password'],
+  ['Windows Laptop', 'Edge', 'May 14, 2026', '02:22 PM', 'Ghaziabad, India', '103.•••.••.42', 'Password'],
+  ['MacBook', 'Firefox', 'May 09, 2026', '11:05 AM', 'Bengaluru, India', '122.•••.••.72', 'Google'],
 ];
 
-const securityAlerts = [
-  {
-    id: 'alert-1',
-    title: 'New device detected',
-    description: 'An iPhone session requires verification.',
-    time: 'Monday, 6:04 PM',
-    date: 'Monday',
-    severity: 'Yellow',
-    status: 'Review',
-  },
-  {
-    id: 'alert-2',
-    title: 'Trusted device added',
-    description: 'Android Phone was approved for this account.',
-    time: 'Yesterday, 8:22 PM',
-    date: 'Yesterday',
-    severity: 'Green',
-    status: 'Resolved',
-  },
-  {
-    id: 'alert-3',
-    title: 'Remote logout performed',
-    description: 'An older session was revoked remotely.',
-    time: 'Sunday, 4:25 PM',
-    date: 'Sunday',
-    severity: 'Green',
-    status: 'Completed',
-  },
+const LOGOUT_HISTORY = [
+  ['Android Phone', 'Today', '07:42 AM', 'Manual logout'],
+  ['iPhone', 'May 18, 2026', '08:20 PM', 'Device revoked'],
+  ['MacBook', 'May 12, 2026', '06:14 PM', 'Session expired'],
+  ['Android Phone', 'May 05, 2026', '09:32 AM', 'Emergency Privacy'],
+  ['Windows Laptop', 'April 29, 2026', '04:11 PM', 'Password changed'],
 ];
 
-const backgroundSystems = [
-  ['Session Security Engine', 'Active', ShieldCheck],
-  ['Device Trust Engine', 'Active', MonitorSmartphone],
-  ['Realtime Session Sync', 'Syncing', RefreshCw],
-  ['Device Activity Tracking', 'Active', ActivityIcon],
-  ['Login Activity Monitoring', 'Active', Radio],
-  ['Remote Session Control', 'Active', Lock],
-  ['Location Synchronization', 'Syncing', Navigation],
-  ['Trusted Device Verification', 'Active', UserCheck],
-  ['Session Analytics', 'Active', BarChart3],
-  ['Threat Monitoring', 'Syncing', ShieldAlert],
-  ['Security Notification Service', 'Active', Bell],
+const SECURITY_EVENTS = [
+  ['New login detected', 'green', 'Reviewed', 'Today', '08:12 AM'],
+  ['Trusted device added', 'green', 'Verified', 'Yesterday', '10:44 PM'],
+  ['Trusted device removed', 'yellow', 'Completed', 'May 18, 2026', '08:21 PM'],
+  ['Session revoked', 'yellow', 'Completed', 'May 18, 2026', '08:20 PM'],
+  ['Password changed', 'green', 'Completed', 'May 17, 2026', '04:32 PM'],
+  ['Two-factor enabled', 'green', 'Active', 'May 16, 2026', '11:42 AM'],
+  ['Biometric enabled', 'green', 'Active', 'May 15, 2026', '03:08 PM'],
+  ['App Lock enabled', 'green', 'Active', 'May 15, 2026', '03:06 PM'],
+  ['Screenshot Shield enabled', 'green', 'Active', 'May 15, 2026', '03:05 PM'],
+  ['Emergency Privacy activated', 'red', 'Protected', 'May 11, 2026', '09:18 PM'],
 ];
 
-const aiSessionItems = [
-  ['Attack Detection', 'Identify possible attacks against active sessions.', ShieldAlert],
-  ['Device Risk Prediction', 'Predict device trust and access risk.', BarChart3],
-  ['Suspicious Session Detection', 'Detect unusual session behavior.', Eye],
-  ['Location Anomaly Detection', 'Identify unusual login locations.', MapPin],
-  ['Automatic Session Isolation', 'Separate risky sessions automatically.', Lock],
-  ['AI Security Advisor', 'Explain session security recommendations.', Sparkles],
-  ['Smart Device Trust', 'Continuously improve device trust decisions.', ShieldCheck],
+const SYSTEMS = [
+  ['Session Monitor', 'Active'],
+  ['Device Trust Engine', 'Active'],
+  ['Login Activity Tracker', 'Active'],
+  ['Realtime Session Sync', 'Syncing'],
+  ['Authentication Sync', 'Active'],
+  ['Encryption Layer', 'Active'],
+  ['Security Analytics', 'Active'],
+  ['Notification Sync', 'Active'],
+  ['Privacy Protection', 'Active'],
+  ['Emergency Lock Service', 'Active'],
 ];
 
-function ActivityIcon(props) {
-  return <Radio {...props} />;
+function sessionIcon(type) {
+  if (type === 'Desktop') {
+    return Laptop;
+  }
+
+  if (type === 'Tablet') {
+    return Monitor;
+  }
+
+  return Smartphone;
 }
 
-function GlassSection({ children }) {
+function severityColor(value) {
+  if (value === 'red') {
+    return '#ff789d';
+  }
+
+  if (value === 'yellow') {
+    return '#ffd27d';
+  }
+
+  return '#82e9c1';
+}
+
+export default function LogoutSessionPage() {
+  const navigate = useNavigate();
+
+  const [sessions, setSessions] = useState(INITIAL_SESSIONS);
+  const [selectedSession, setSelectedSession] =
+    useState(null);
+  const [toast, setToast] = useState('');
+  const [notifications, setNotifications] = useState({
+    login: true,
+    device: true,
+    trusted: true,
+    revoked: true,
+    logout: false,
+    emergency: true,
+  });
+
+  const activeSessions = sessions.length;
+  const trustedDevices = sessions.filter(
+    (session) => session.trusted
+  ).length;
+
+  const currentSession = useMemo(
+    () => sessions.find((session) => session.current),
+    [sessions]
+  );
+
+  const showToast = (value) => {
+    setToast(value);
+    window.setTimeout(() => setToast(''), 2600);
+  };
+
+  const revokeSession = (id) => {
+    setSessions((current) =>
+      current.filter((session) => session.id !== id)
+    );
+    setSelectedSession(null);
+    showToast('Session revoked successfully.');
+  };
+
+  const toggleTrust = (id) => {
+    setSessions((current) =>
+      current.map((session) =>
+        session.id === id
+          ? { ...session, trusted: !session.trusted }
+          : session
+      )
+    );
+    showToast('Device trust updated.');
+  };
+
+  const logoutAllOtherDevices = () => {
+    setSessions((current) =>
+      current.filter((session) => session.current)
+    );
+    showToast('All other devices have been logged out.');
+  };
+
+  const revokeAllSessions = () => {
+    setSessions([]);
+    setSelectedSession(null);
+    showToast('All sessions have been revoked.');
+  };
+
+  const exportReport = (format) => {
+    const report = {
+      exportedAt: new Date().toISOString(),
+      activeSessions: sessions,
+      loginHistory: LOGIN_HISTORY,
+      logoutHistory: LOGOUT_HISTORY,
+      securityEvents: SECURITY_EVENTS,
+    };
+
+    if (format === 'JSON') {
+      const blob = new Blob(
+        [JSON.stringify(report, null, 2)],
+        { type: 'application/json' }
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'aarush-session-report.json';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }
+
+    showToast(`${format} session report prepared.`);
+  };
+
   return (
-    <section
-      style={{
-        marginTop: '0.9rem',
-        padding: '1rem',
-        borderRadius: '1.25rem',
-        background: 'rgba(15,19,30,0.88)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        boxShadow: '0 18px 50px rgba(0,0,0,0.24)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-      }}
-    >
-      {children}
-    </section>
+    <div style={styles.page}>
+      <TopBar
+        pageTitle="Session Management"
+        showBackButton
+      />
+
+      <main style={styles.content}>
+        <section style={styles.hero}>
+          <span style={styles.heroIcon}>
+            <ShieldCheck size={26} />
+          </span>
+
+          <div style={styles.heroCopy}>
+            <h1 style={styles.title}>
+              Manage Your Active Sessions
+            </h1>
+            <p style={styles.subtitle}>
+              View every device signed into your Aarush account and
+              control access across all devices.
+            </p>
+          </div>
+        </section>
+
+        <section style={styles.scoreCard}>
+          <div style={styles.scoreCircle}>
+            <div style={styles.scoreInner}>
+              <strong>95</strong>
+              <span>/ 100</span>
+            </div>
+          </div>
+
+          <div>
+            <h2 style={styles.scoreTitle}>Excellent security</h2>
+            <p style={styles.scoreText}>
+              Your active sessions and trusted devices are under
+              strong protection.
+            </p>
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle icon={ShieldCheck} title="This Device" />
+
+          {currentSession ? (
+            <SessionCard
+              session={currentSession}
+              onDetails={setSelectedSession}
+              onRevoke={revokeSession}
+              onTrust={toggleTrust}
+            />
+          ) : (
+            <p style={styles.emptyText}>
+              No current session was found.
+            </p>
+          )}
+        </section>
+
+        <section style={styles.overviewGrid}>
+          <Overview
+            icon={Globe2}
+            label="Active Sessions"
+            value={activeSessions}
+          />
+          <Overview
+            icon={UserCheck}
+            label="Trusted Devices"
+            value={trustedDevices}
+          />
+          <Overview
+            icon={Smartphone}
+            label="Used This Month"
+            value="6"
+          />
+          <Overview
+            icon={AlertTriangle}
+            label="New This Week"
+            value="1"
+          />
+          <Overview
+            icon={Clock3}
+            label="Avg. Duration"
+            value="4h 18m"
+          />
+          <Overview
+            icon={Activity}
+            label="Longest Session"
+            value="2d 6h"
+          />
+          <Overview
+            icon={RefreshCw}
+            label="Shortest Session"
+            value="12m"
+          />
+          <Overview
+            icon={Clock3}
+            label="Last Login"
+            value="Today"
+          />
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle icon={Monitor} title="Active Devices" />
+
+          <div style={styles.list}>
+            {sessions.map((session) => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                onDetails={setSelectedSession}
+                onRevoke={revokeSession}
+                onTrust={toggleTrust}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={Globe2}
+            title="Recent Login Activity"
+          />
+
+          <Timeline>
+            {LOGIN_HISTORY.map((event) => (
+              <TimelineItem
+                key={event.join('-')}
+                title={`${event[0]} · ${event[1]}`}
+                details={`${event[3]} · ${event[2]} · ${event[4]} · IP ${event[5]} · ${event[6]}`}
+                color="#82e9c1"
+              />
+            ))}
+          </Timeline>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={LogOut}
+            title="Recent Logout Activity"
+          />
+
+          <Timeline>
+            {LOGOUT_HISTORY.map((event) => (
+              <TimelineItem
+                key={event.join('-')}
+                title={event[0]}
+                details={`${event[2]} · ${event[1]} · ${event[3]}`}
+                color="#ffd27d"
+              />
+            ))}
+          </Timeline>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={UserCheck}
+            title="Trusted Devices"
+          />
+
+          <div style={styles.list}>
+            {sessions
+              .filter((session) => session.trusted)
+              .map((session) => (
+                <div key={session.id} style={styles.trustedRow}>
+                  <UserCheck size={17} color="#82e9c1" />
+
+                  <div style={styles.sessionCopy}>
+                    <strong>{session.name}</strong>
+                    <small>
+                      {session.os} · {session.location}
+                    </small>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleTrust(session.id)}
+                    style={styles.smallDangerButton}
+                  >
+                    Remove Trust
+                  </button>
+                </div>
+              ))}
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={ShieldAlert}
+            title="Recent Security Events"
+          />
+
+          <Timeline>
+            {SECURITY_EVENTS.map((event) => (
+              <TimelineItem
+                key={event.join('-')}
+                title={event[0]}
+                details={`${event[2]} · ${event[3]} · ${event[4]}`}
+                color={severityColor(event[1])}
+              />
+            ))}
+          </Timeline>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={Database}
+            title="Session Security Systems"
+          />
+
+          <div style={styles.systemGrid}>
+            {SYSTEMS.map(([name, status]) => (
+              <div key={name} style={styles.systemRow}>
+                <CheckCircle2 size={14} color="#82e9c1" />
+                <span>{name}</span>
+                <small
+                  style={{
+                    color:
+                      status === 'Syncing'
+                        ? '#ffd27d'
+                        : '#82e9c1',
+                  }}
+                >
+                  {status}
+                </small>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section style={styles.emergencyCard}>
+          <SectionTitle
+            icon={ShieldAlert}
+            title="Emergency Session Lockdown"
+            emergency
+          />
+
+          <Action
+            icon={LogOut}
+            label="Logout All Other Devices"
+            onClick={logoutAllOtherDevices}
+            danger
+          />
+
+          <Action
+            icon={LogOut}
+            label="Logout Every Device"
+            onClick={revokeAllSessions}
+            danger
+          />
+
+          <Action
+            icon={Ban}
+            label="Revoke All Sessions"
+            onClick={revokeAllSessions}
+            danger
+          />
+
+          <Action
+            icon={LockKeyhole}
+            label="Lock Account"
+            onClick={() =>
+              showToast('Account lock requested.')
+            }
+            danger
+          />
+
+          <Action
+            icon={RefreshCw}
+            label="Force Re-authentication"
+            onClick={() =>
+              showToast('Re-authentication requested.')
+            }
+            danger
+          />
+
+          <Action
+            icon={ShieldAlert}
+            label="Open Emergency Privacy"
+            onClick={() => navigate('/emergency-privacy')}
+            danger
+          />
+
+          <Action
+            icon={ShieldCheck}
+            label="Open Security Center"
+            onClick={() => navigate('/security-center')}
+            danger
+          />
+
+          <Action
+            icon={Download}
+            label="Download Security Report"
+            onClick={() => exportReport('PDF')}
+            danger
+          />
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={FileDown}
+            title="Session Export"
+          />
+
+          <div style={styles.exportGrid}>
+            {['PDF', 'JSON', 'CSV'].map((format) => (
+              <button
+                key={format}
+                type="button"
+                onClick={() => exportReport(format)}
+                style={styles.exportButton}
+              >
+                <FileDown size={16} />
+                Export {format}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <SectionTitle
+            icon={Bell}
+            title="Notification Preferences"
+          />
+
+          <div style={styles.preferenceList}>
+            <Preference
+              label="New Login Alerts"
+              value={notifications.login}
+              onChange={(value) =>
+                setNotifications((current) => ({
+                  ...current,
+                  login: value,
+                }))
+              }
+            />
+            <Preference
+              label="New Device Alerts"
+              value={notifications.device}
+              onChange={(value) =>
+                setNotifications((current) => ({
+                  ...current,
+                  device: value,
+                }))
+              }
+            />
+            <Preference
+              label="Trusted Device Alerts"
+              value={notifications.trusted}
+              onChange={(value) =>
+                setNotifications((current) => ({
+                  ...current,
+                  trusted: value,
+                }))
+              }
+            />
+            <Preference
+              label="Session Revoked Alerts"
+              value={notifications.revoked}
+              onChange={(value) =>
+                setNotifications((current) => ({
+                  ...current,
+                  revoked: value,
+                }))
+              }
+            />
+            <Preference
+              label="Logout Alerts"
+              value={notifications.logout}
+              onChange={(value) =>
+                setNotifications((current) => ({
+                  ...current,
+                  logout: value,
+                }))
+              }
+            />
+            <Preference
+              label="Emergency Privacy Alerts"
+              value={notifications.emergency}
+              onChange={(value) =>
+                setNotifications((current) => ({
+                  ...current,
+                  emergency: value,
+                }))
+              }
+            />
+          </div>
+        </section>
+      </main>
+
+      <BottomNav />
+
+      {selectedSession ? (
+        <DeviceDetails
+          session={selectedSession}
+          onClose={() => setSelectedSession(null)}
+          onRevoke={revokeSession}
+          onTrust={toggleTrust}
+        />
+      ) : null}
+
+      {toast ? (
+        <div role="status" style={styles.toast}>
+          {toast}
+          <button
+            type="button"
+            onClick={() => setToast('')}
+            style={styles.toastClose}
+            aria-label="Dismiss message"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function SectionHeader({ icon: Icon, title, description }) {
+function SectionTitle({ icon: Icon, title, emergency }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '0.65rem',
-        marginBottom: '0.8rem',
-      }}
-    >
+    <div style={styles.sectionHeader}>
       <span
         style={{
-          width: '2rem',
-          height: '2rem',
-          display: 'grid',
-          placeItems: 'center',
-          borderRadius: '0.75rem',
-          background:
-            'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.12))',
-          color: '#dfe7ff',
-          flexShrink: 0,
+          ...styles.sectionIcon,
+          ...(emergency ? styles.emergencyIcon : {}),
         }}
       >
-        <Icon size={16} />
+        <Icon size={17} />
+      </span>
+      <h2 style={styles.sectionTitle}>{title}</h2>
+    </div>
+  );
+}
+
+function SessionCard({
+  session,
+  onDetails,
+  onRevoke,
+  onTrust,
+}) {
+  const Icon = sessionIcon(session.type);
+
+  return (
+    <div style={styles.sessionCard}>
+      <span style={styles.deviceIcon}>
+        <Icon size={19} />
       </span>
 
-      <div>
-        <h2
-          style={{
-            margin: 0,
-            color: '#f4f7ff',
-            fontSize: '0.98rem',
-            fontWeight: 850,
-          }}
-        >
-          {title}
-        </h2>
+      <div style={styles.sessionCopy}>
+        <div style={styles.sessionTitleRow}>
+          <strong>{session.name}</strong>
 
-        <p
-          style={{
-            margin: '0.25rem 0 0',
-            color: '#8e9bb7',
-            fontSize: '0.75rem',
-            lineHeight: 1.45,
-          }}
-        >
-          {description}
-        </p>
+          {session.current ? (
+            <span style={styles.currentBadge}>
+              Current device
+            </span>
+          ) : null}
+
+          {session.trusted ? (
+            <span style={styles.trustedBadge}>
+              Trusted
+            </span>
+          ) : null}
+        </div>
+
+        <small>
+          {session.type} · {session.os} · {session.browser}
+        </small>
+        <small>{session.location}</small>
+        <small>Login: {session.loginTime}</small>
+        <small>Last activity: {session.lastActivity}</small>
+
+        <div style={styles.inlineActions}>
+          <button
+            type="button"
+            onClick={() => onDetails(session)}
+            style={styles.smallButton}
+          >
+            View Details
+          </button>
+
+          {!session.current ? (
+            <button
+              type="button"
+              onClick={() => onTrust(session.id)}
+              style={styles.smallButton}
+            >
+              {session.trusted ? 'Untrust' : 'Trust'}
+            </button>
+          ) : null}
+
+          {!session.current ? (
+            <button
+              type="button"
+              onClick={() => onRevoke(session.id)}
+              style={styles.smallDangerButton}
+            >
+              Logout
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
 }
 
-function StatusPill({ status }) {
-  const active = status === 'Active';
-  const syncing = status === 'Syncing';
+function Timeline({ children }) {
+  return <div style={styles.timeline}>{children}</div>;
+}
 
+function TimelineItem({ title, details, color }) {
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.25rem',
-        padding: '0.28rem 0.45rem',
-        borderRadius: '999px',
-        background: active
-          ? 'rgba(82,232,170,0.1)'
-          : syncing
-            ? 'rgba(77,215,255,0.1)'
-            : 'rgba(255,179,71,0.1)',
-        color: active ? '#8af0c7' : syncing ? '#8edfff' : '#ffd28d',
-        fontSize: '0.61rem',
-        fontWeight: 800,
-      }}
-    >
-      {syncing ? <RefreshCw size={10} /> : <span>●</span>}
-      {status}
-    </span>
+    <div style={styles.timelineItem}>
+      <span
+        style={{
+          ...styles.timelineDot,
+          background: color,
+          boxShadow: `0 0 9px ${color}`,
+        }}
+      />
+
+      <div style={styles.timelineCopy}>
+        <strong>{title}</strong>
+        <small>{details}</small>
+      </div>
+    </div>
   );
 }
 
-function ActionButton({ icon: Icon, children, onClick, danger = false }) {
+function Overview({ icon: Icon, label, value }) {
+  return (
+    <div style={styles.overview}>
+      <span style={styles.overviewIcon}>
+        <Icon size={17} />
+      </span>
+      <strong>{value}</strong>
+      <small>{label}</small>
+    </div>
+  );
+}
+
+function Action({ icon: Icon, label, onClick, danger }) {
   return (
     <button
       type="button"
       onClick={onClick}
       style={{
-        minHeight: '2.7rem',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.35rem',
-        border: danger
-          ? '1px solid rgba(255,79,122,0.22)'
-          : '1px solid rgba(255,255,255,0.09)',
-        borderRadius: '999px',
-        background: danger
-          ? 'rgba(255,79,122,0.09)'
-          : 'rgba(255,255,255,0.05)',
-        color: danger ? '#ffb2c8' : '#dce5f8',
-        fontSize: '0.72rem',
-        fontWeight: 800,
-        cursor: 'pointer',
+        ...styles.action,
+        ...(danger ? styles.dangerAction : {}),
       }}
     >
-      <Icon size={14} />
-      {children}
+      <Icon size={16} />
+      <span>{label}</span>
+      <ChevronRight size={15} />
     </button>
   );
 }
 
-function DeviceCard({ session, onAction }) {
-  const Icon = session.icon;
-
+function Preference({ label, value, onChange }) {
   return (
-    <article
-      style={{
-        padding: '0.85rem',
-        borderRadius: '1rem',
-        background: session.current
-          ? 'linear-gradient(135deg, rgba(124,92,255,0.14), rgba(77,215,255,0.06))'
-          : 'rgba(255,255,255,0.04)',
-        border: session.current
-          ? '1px solid rgba(124,92,255,0.26)'
-          : '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.65rem',
-        }}
-      >
-        <span
-          style={{
-            width: '2.5rem',
-            height: '2.5rem',
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: '0.85rem',
-            background: 'rgba(77,215,255,0.1)',
-            color: '#a5eaff',
-            flexShrink: 0,
-          }}
-        >
-          <Icon size={18} />
-        </span>
-
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <strong
-            style={{
-              display: 'block',
-              color: '#edf2ff',
-              fontSize: '0.78rem',
-              fontWeight: 850,
-            }}
-          >
-            {session.name}
-          </strong>
-
-          <span
-            style={{
-              display: 'block',
-              marginTop: '0.2rem',
-              color: '#8d9ab6',
-              fontSize: '0.64rem',
-            }}
-          >
-            {session.type} · {session.operatingSystem} · {session.browser}
-          </span>
-        </span>
-
-        {session.current ? (
-          <span
-            style={{
-              color: '#83e9c1',
-              fontSize: '0.61rem',
-              fontWeight: 850,
-            }}
-          >
-            Current device
-          </span>
-        ) : null}
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '0.35rem',
-          marginTop: '0.75rem',
-          color: '#8997b3',
-          fontSize: '0.63rem',
-          lineHeight: 1.45,
-        }}
-      >
-        <span>Last activity: {session.lastActivity}</span>
-        <span>Login: {session.loginTime}</span>
-        <span>Location: {session.location}</span>
-        <span>Duration: {session.duration}</span>
-        <span>
-          Trust: {session.trusted ? 'Trusted' : 'Unknown'}
-        </span>
-        <span>Score: {session.score} / 100</span>
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.4rem',
-          marginTop: '0.75rem',
-        }}
-      >
-        <ActionButton
-          icon={ChevronRight}
-          onClick={() => onAction(`${session.name} details are ready for backend integration.`)}
-        >
-          View Details
-        </ActionButton>
-
-        {!session.trusted && !session.current ? (
-          <ActionButton
-            icon={ShieldCheck}
-            onClick={() => onAction(`${session.name} trust approval is ready for Supabase integration.`)}
-          >
-            Trust Device
-          </ActionButton>
-        ) : null}
-
-        {!session.current ? (
-          <>
-            <ActionButton
-              icon={X}
-              danger
-              onClick={() => onAction(`${session.name} removal is ready for remote session integration.`)}
-            >
-              Remove Device
-            </ActionButton>
-
-            <ActionButton
-              icon={Lock}
-              danger
-              onClick={() => onAction(`${session.name} remote logout is ready for session integration.`)}
-            >
-              Remote Logout
-            </ActionButton>
-
-            <ActionButton
-              icon={UserCheck}
-              onClick={() => onAction(`${session.name} can be marked as current after secure verification.`)}
-            >
-              Mark As Current
-            </ActionButton>
-          </>
-        ) : null}
-
-        <ActionButton
-          icon={PencilIcon}
-          onClick={() => onAction(`${session.name} rename is ready for device metadata integration.`)}
-        >
-          Rename Device
-        </ActionButton>
-      </div>
-    </article>
+    <label style={styles.preference}>
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(event) => onChange(event.target.checked)}
+        style={styles.checkbox}
+      />
+    </label>
   );
 }
 
-function PencilIcon(props) {
-  return <Sparkles {...props} />;
-}
-
-export default function LogoutSessionPage() {
-  const navigate = useNavigate();
-  const [autoLogoutTimer, setAutoLogoutTimer] = useState('Never');
-  const [message, setMessage] = useState('');
-  const [notifications, setNotifications] = useState({
-    newDevice: true,
-    trustedDevice: true,
-    remoteLogout: true,
-    autoLogout: true,
-    suspiciousLogin: true,
-    deviceLocation: false,
-    sessionExpiry: true,
-  });
-
-  const sessionScore = useMemo(() => {
-    const enabledNotifications = Object.values(notifications).filter(Boolean).length;
-    return Math.min(100, 89 + enabledNotifications);
-  }, [notifications]);
-
-  const sessionLevel =
-    sessionScore >= 90
-      ? 'Excellent'
-      : sessionScore >= 75
-        ? 'Strong'
-        : sessionScore >= 55
-          ? 'Moderate'
-          : 'Weak';
-
-  const showMessage = (text) => {
-    setMessage(text);
-    window.setTimeout(() => setMessage(''), 3200);
-  };
-
-  const toggleNotification = (id) => {
-    setNotifications((current) => ({
-      ...current,
-      [id]: !current[id],
-    }));
-  };
-
+function DeviceDetails({
+  session,
+  onClose,
+  onRevoke,
+  onTrust,
+}) {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        paddingBottom: '7rem',
-        background:
-          'radial-gradient(circle at top, rgba(34,43,68,0.48) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
-        color: '#f4f7ff',
-      }}
-    >
-      <TopBar
-        pageTitle="Session Management"
-        onChatClick={() => navigate('/chats')}
-        onOneTapLock={() => navigate('/lock')}
-      />
+    <div style={styles.modalBackdrop}>
+      <div style={styles.modal}>
+        <div style={styles.modalHeader}>
+          <h2 style={styles.sectionTitle}>Device Details</h2>
 
-      <main
-        style={{
-          width: '100%',
-          maxWidth: '760px',
-          margin: '0 auto',
-          padding: '0.9rem',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            marginBottom: '0.8rem',
-            padding: '0.35rem 0.55rem',
-            border: 0,
-            borderRadius: '999px',
-            background: 'rgba(255,255,255,0.05)',
-            color: '#aebbd5',
-            fontSize: '0.72rem',
-            fontWeight: 750,
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronLeft size={15} />
-          Back
-        </button>
-
-        <section
-          style={{
-            padding: '1.25rem',
-            borderRadius: '1.5rem',
-            background:
-              'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.1), rgba(255,79,216,0.08))',
-            border: '1px solid rgba(124,92,255,0.25)',
-            boxShadow:
-              '0 24px 70px rgba(0,0,0,0.32), 0 0 32px rgba(124,92,255,0.1)',
-            backdropFilter: 'blur(18px)',
-            WebkitBackdropFilter: 'blur(18px)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.8rem',
-            }}
+          <button
+            type="button"
+            onClick={onClose}
+            style={styles.closeButton}
+            aria-label="Close device details"
           >
-            <div
-              style={{
-                width: '3.6rem',
-                height: '3.6rem',
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: '1.15rem',
-                background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-                boxShadow: '0 0 30px rgba(77,215,255,0.25)',
-                color: '#fff',
-                flexShrink: 0,
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={styles.detailList}>
+          <Detail label="Device ID" value={session.id} />
+          <Detail label="Model" value={session.model} />
+          <Detail label="Manufacturer" value={session.manufacturer} />
+          <Detail label="OS version" value={session.osVersion} />
+          <Detail
+            label="Browser version"
+            value={session.browserVersion}
+          />
+          <Detail
+            label="Screen resolution"
+            value={session.resolution}
+          />
+          <Detail
+            label="Login method"
+            value={session.method}
+          />
+          <Detail label="IP address" value={session.ip} />
+          <Detail
+            label="Last activity"
+            value={session.lastActivity}
+          />
+          <Detail
+            label="Created session"
+            value={session.created}
+          />
+          <Detail
+            label="Trusted status"
+            value={session.trusted ? 'Trusted' : 'Not trusted'}
+          />
+        </div>
+
+        <div style={styles.modalActions}>
+          {!session.current ? (
+            <button
+              type="button"
+              onClick={() => {
+                onRevoke(session.id);
+                onClose();
               }}
+              style={styles.smallDangerButton}
             >
-              <MonitorSmartphone size={29} />
-            </div>
+              Logout
+            </button>
+          ) : null}
 
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  color: '#f8faff',
-                  fontSize: '1.35rem',
-                  fontWeight: 900,
-                  letterSpacing: '-0.025em',
-                }}
-              >
-                Session &amp; Device Control
-              </h1>
-
-              <p
-                style={{
-                  margin: '0.45rem 0 0',
-                  color: '#c1cce2',
-                  fontSize: '0.8rem',
-                  lineHeight: 1.55,
-                }}
-              >
-                Manage active devices, trusted sessions, and remote security
-                controls from one place.
-              </p>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              marginTop: '1.2rem',
-              paddingTop: '1rem',
-              borderTop: '1px solid rgba(255,255,255,0.1)',
-            }}
+          <button
+            type="button"
+            onClick={() => onTrust(session.id)}
+            style={styles.smallButton}
           >
-            <div
-              style={{
-                width: '6.4rem',
-                height: '6.4rem',
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: '999px',
-                background: `conic-gradient(#61e8b4 ${sessionScore * 3.6}deg, rgba(255,255,255,0.1) 0deg)`,
-                flexShrink: 0,
-              }}
-            >
-              <div
-                style={{
-                  width: '5.25rem',
-                  height: '5.25rem',
-                  display: 'grid',
-                  placeItems: 'center',
-                  alignContent: 'center',
-                  borderRadius: '999px',
-                  background: '#111827',
-                  textAlign: 'center',
-                }}
-              >
-                <strong
-                  style={{
-                    color: '#f7fbff',
-                    fontSize: '1.15rem',
-                    lineHeight: 1,
-                  }}
-                >
-                  {sessionScore}
-                </strong>
+            {session.trusted ? 'Remove Trust' : 'Trust Device'}
+          </button>
 
-                <span
-                  style={{
-                    marginTop: '0.22rem',
-                    color: '#91a0bd',
-                    fontSize: '0.6rem',
-                  }}
-                >
-                  / 100
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  color: '#83edc1',
-                  fontSize: '0.8rem',
-                  fontWeight: 850,
-                }}
-              >
-                <Check size={14} />
-                {sessionLevel}
-              </span>
-
-              <p
-                style={{
-                  margin: '0.38rem 0 0',
-                  color: '#aab7d0',
-                  fontSize: '0.72rem',
-                  lineHeight: 1.5,
-                }}
-              >
-                Your current session security is well protected. Review
-                unknown devices and refresh activity regularly.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <GlassSection>
-          <SectionHeader
-            icon={Sparkles}
-            title="Quick Session Actions"
-            description="Common session controls are available without leaving this page."
-          />
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: '0.55rem',
-            }}
+          <button
+            type="button"
+            onClick={onClose}
+            style={styles.smallButton}
           >
-            <ActionButton
-              icon={LogOutIcon}
-              danger
-              onClick={() => showMessage('Logout from other devices is ready for Supabase session integration.')}
-            >
-              Logout All Other Devices
-            </ActionButton>
-
-            <ActionButton
-              icon={Lock}
-              danger
-              onClick={() => showMessage('Lock all sessions is ready for remote session integration.')}
-            >
-              Lock All Sessions
-            </ActionButton>
-
-            <ActionButton
-              icon={ShieldCheck}
-              onClick={() => navigate('/security-center')}
-            >
-              Open Security Center
-            </ActionButton>
-
-            <ActionButton
-              icon={Eye}
-              onClick={() => navigate('/privacy-dashboard')}
-            >
-              Open Privacy Dashboard
-            </ActionButton>
-
-            <ActionButton
-              icon={ShieldAlert}
-              danger
-              onClick={() => navigate('/emergency-privacy')}
-            >
-              Emergency Session Revoke
-            </ActionButton>
-
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => showMessage('Device activity refresh is ready for realtime session integration.')}
-            >
-              Refresh Device Activity
-            </ActionButton>
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={MonitorSmartphone}
-            title="Active Sessions"
-            description="Every active session currently connected to your Aarush account."
-          />
-
-          <div style={{ display: 'grid', gap: '0.6rem' }}>
-            {activeSessions.map((session) => (
-              <DeviceCard
-                key={session.id}
-                session={session}
-                onAction={showMessage}
-              />
-            ))}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={Globe2}
-            title="Live Device Map"
-            description="A secure map view prepared for realtime device locations and routes."
-          />
-
-          <div
-            style={{
-              position: 'relative',
-              minHeight: '15rem',
-              overflow: 'hidden',
-              borderRadius: '1rem',
-              background:
-                'radial-gradient(circle at 30% 35%, rgba(77,215,255,0.2), transparent 20%), radial-gradient(circle at 70% 65%, rgba(124,92,255,0.24), transparent 24%), linear-gradient(145deg, #111a2a, #0b101c)',
-              border: '1px solid rgba(77,215,255,0.16)',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                inset: '15% 5%',
-                opacity: 0.3,
-                backgroundImage:
-                  'linear-gradient(rgba(128,170,220,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(128,170,220,0.2) 1px, transparent 1px)',
-                backgroundSize: '2rem 2rem',
-                transform: 'perspective(400px) rotateX(48deg)',
-                transformOrigin: 'center',
-              }}
-            />
-
-            {[
-              ['Windows Laptop', 'Ghaziabad', 'Online', '28%', '34%', '#72e9b8'],
-              ['Android Phone', 'New Delhi', 'Online', '38%', '26%', '#8edfff'],
-              ['iPhone', 'Mumbai', 'Syncing', '67%', '68%', '#ffd07d'],
-            ].map(([name, city, status, top, left, color]) => (
-              <div
-                key={name}
-                style={{
-                  position: 'absolute',
-                  top,
-                  left,
-                  display: 'grid',
-                  justifyItems: 'center',
-                  gap: '0.25rem',
-                }}
-              >
-                <span
-                  style={{
-                    width: '0.85rem',
-                    height: '0.85rem',
-                    borderRadius: '999px',
-                    background: color,
-                    boxShadow: `0 0 0 6px ${color}22, 0 0 18px ${color}`,
-                  }}
-                />
-
-                <span
-                  style={{
-                    padding: '0.3rem 0.42rem',
-                    borderRadius: '0.5rem',
-                    background: 'rgba(8,13,23,0.86)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    color: '#dfe8fb',
-                    fontSize: '0.58rem',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {name}
-                  <br />
-                  <span style={{ color }}>{city} · {status}</span>
-                </span>
-              </div>
-            ))}
-
-            <div
-              style={{
-                position: 'absolute',
-                right: '0.7rem',
-                bottom: '0.7rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0.35rem 0.5rem',
-                borderRadius: '999px',
-                background: 'rgba(8,13,23,0.82)',
-                color: '#9eb0cd',
-                fontSize: '0.6rem',
-              }}
-            >
-              <MapPin size={11} />
-              Live map foundation
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.45rem',
-              marginTop: '0.7rem',
-            }}
-          >
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => showMessage('Location refresh is ready for realtime device integration.')}
-            >
-              Refresh Locations
-            </ActionButton>
-
-            <ActionButton
-              icon={Navigation}
-              onClick={() => showMessage('Device routes are prepared for location history integration.')}
-            >
-              View Device Route
-            </ActionButton>
-
-            <ActionButton
-              icon={CloudDownload}
-              onClick={() => showMessage('Device activity export is ready for backend integration.')}
-            >
-              Export Device Activity
-            </ActionButton>
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={ShieldCheck}
-            title="Trusted Devices"
-            description="Devices approved by the user for lower-friction secure access."
-          />
-
-          <div style={{ display: 'grid', gap: '0.55rem' }}>
-            {activeSessions
-              .filter((session) => session.trusted)
-              .map((session) => {
-                const Icon = session.icon;
-
-                return (
-                  <div
-                    key={session.id}
-                    style={{
-                      padding: '0.75rem',
-                      borderRadius: '0.95rem',
-                      background: 'rgba(82,232,170,0.05)',
-                      border: '1px solid rgba(82,232,170,0.12)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.6rem',
-                      }}
-                    >
-                      <Icon size={17} color="#8deec5" />
-
-                      <span style={{ minWidth: 0, flex: 1 }}>
-                        <strong
-                          style={{
-                            display: 'block',
-                            color: '#eaf0ff',
-                            fontSize: '0.75rem',
-                          }}
-                        >
-                          {session.name}
-                        </strong>
-
-                        <span
-                          style={{
-                            display: 'block',
-                            marginTop: '0.18rem',
-                            color: '#8c99b5',
-                            fontSize: '0.63rem',
-                          }}
-                        >
-                          Trust level · Trusted since account verification
-                        </span>
-                      </span>
-
-                      <span
-                        style={{
-                          color: '#83e9c1',
-                          fontSize: '0.65rem',
-                          fontWeight: 850,
-                        }}
-                      >
-                        {session.score} / 100
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '0.35rem',
-                        marginTop: '0.65rem',
-                      }}
-                    >
-                      <ActionButton
-                        icon={X}
-                        onClick={() => showMessage(`${session.name} trust removal is ready for device integration.`)}
-                      >
-                        Remove Trust
-                      </ActionButton>
-
-                      <ActionButton
-                        icon={Shield}
-                        onClick={() => showMessage(`${session.name} security history is ready for audit integration.`)}
-                      >
-                        View Security History
-                      </ActionButton>
-
-                      <ActionButton
-                        icon={Sparkles}
-                        onClick={() => showMessage(`${session.name} rename is ready for device metadata integration.`)}
-                      >
-                        Rename Trusted Device
-                      </ActionButton>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={AlertTriangle}
-            title="Unknown Devices"
-            description="Devices requiring verification before they receive trusted access."
-          />
-
-          <div
-            style={{
-              display: 'grid',
-              gap: '0.55rem',
-            }}
-          >
-            {activeSessions
-              .filter((session) => !session.trusted)
-              .map((session) => (
-                <div
-                  key={session.id}
-                  style={{
-                    padding: '0.8rem',
-                    borderRadius: '0.95rem',
-                    background: 'rgba(255,179,71,0.06)',
-                    border: '1px solid rgba(255,179,71,0.16)',
-                  }}
-                >
-                  <strong
-                    style={{
-                      display: 'block',
-                      color: '#f0e6cf',
-                      fontSize: '0.76rem',
-                    }}
-                  >
-                    {session.name}
-                  </strong>
-
-                  <p
-                    style={{
-                      margin: '0.3rem 0',
-                      color: '#a7977e',
-                      fontSize: '0.65rem',
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    {session.type} · {session.location}
-                    <br />
-                    First seen at {session.loginTime} · Last activity{' '}
-                    {session.lastActivity}
-                  </p>
-
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      padding: '0.28rem 0.45rem',
-                      borderRadius: '999px',
-                      background: 'rgba(255,179,71,0.12)',
-                      color: '#ffd28d',
-                      fontSize: '0.61rem',
-                      fontWeight: 800,
-                    }}
-                  >
-                    Risk level: Warning
-                  </span>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '0.4rem',
-                      marginTop: '0.65rem',
-                    }}
-                  >
-                    <ActionButton
-                      icon={UserCheck}
-                      onClick={() => showMessage(`${session.name} verification is ready for secure device enrollment.`)}
-                    >
-                      Verify Device
-                    </ActionButton>
-
-                    <ActionButton
-                      icon={Lock}
-                      danger
-                      onClick={() => showMessage(`${session.name} blocking is ready for remote session integration.`)}
-                    >
-                      Block Device
-                    </ActionButton>
-
-                    <ActionButton
-                      icon={AlertTriangle}
-                      danger
-                      onClick={() => showMessage('Suspicious activity reporting is ready for security service integration.')}
-                    >
-                      Report Suspicious Activity
-                    </ActionButton>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={Clock3}
-            title="Automatic Logout"
-            description="Automatically sign out inactive devices after the selected period."
-          />
-
-          <select
-            value={autoLogoutTimer}
-            onChange={(event) => setAutoLogoutTimer(event.target.value)}
-            style={{
-              width: '100%',
-              minHeight: '2.8rem',
-              padding: '0 0.75rem',
-              borderRadius: '0.8rem',
-              border: '1px solid rgba(255,255,255,0.1)',
-              outline: 0,
-              background: '#151b2b',
-              color: '#edf3ff',
-              fontSize: '0.76rem',
-              cursor: 'pointer',
-            }}
-          >
-            {timerOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-
-          <p
-            style={{
-              margin: '0.65rem 0 0',
-              color: '#8997b3',
-              fontSize: '0.68rem',
-              lineHeight: 1.5,
-            }}
-          >
-            Inactive devices will be signed out automatically after{' '}
-            <span style={{ color: '#dfe8fb', fontWeight: 800 }}>
-              {autoLogoutTimer}
-            </span>
-            . The current device remains active. This control is prepared for
-            future server-side session enforcement.
-          </p>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={BarChart3}
-            title="Device Trust Level"
-            description="Trust scores summarize verification, history, location, and session consistency."
-          />
-
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            {activeSessions.map((session) => (
-              <div
-                key={session.id}
-                style={{
-                  padding: '0.7rem',
-                  borderRadius: '0.9rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <strong
-                    style={{
-                      color: '#eaf0ff',
-                      fontSize: '0.74rem',
-                    }}
-                  >
-                    {session.name}
-                  </strong>
-
-                  <span
-                    style={{
-                      color:
-                        session.score >= 80
-                          ? '#83e9c1'
-                          : session.score >= 50
-                            ? '#ffd28d'
-                            : '#ff9eb8',
-                      fontSize: '0.66rem',
-                      fontWeight: 850,
-                    }}
-                  >
-                    {session.score} {session.score >= 80 ? 'Trusted' : session.score >= 50 ? 'Warning' : 'Unknown'}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    height: '0.35rem',
-                    marginTop: '0.55rem',
-                    overflow: 'hidden',
-                    borderRadius: '999px',
-                    background: 'rgba(255,255,255,0.08)',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${session.score}%`,
-                      height: '100%',
-                      borderRadius: 'inherit',
-                      background:
-                        session.score >= 80
-                          ? 'linear-gradient(90deg, #61e8b4, #4dd7ff)'
-                          : session.score >= 50
-                            ? 'linear-gradient(90deg, #ffd07d, #ffb347)'
-                            : 'linear-gradient(90deg, #ff7f9e, #ff4f7a)',
-                    }}
-                  />
-                </div>
-
-                <span
-                  style={{
-                    display: 'block',
-                    marginTop: '0.4rem',
-                    color: '#8997b3',
-                    fontSize: '0.62rem',
-                  }}
-                >
-                  Recent verification · Login consistency · Device history ·
-                  Location consistency · Security verification
-                </span>
-              </div>
-            ))}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={Activity}
-            title="Session History"
-            description="A timeline of important session and device events."
-          />
-
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            {sessionHistory.map((event) => (
-              <div
-                key={event.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.55rem',
-                  padding: '0.7rem',
-                  borderRadius: '0.9rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <span
-                  style={{
-                    width: '0.55rem',
-                    height: '0.55rem',
-                    marginTop: '0.3rem',
-                    borderRadius: '999px',
-                    background: event.color,
-                    boxShadow: `0 0 9px ${event.color}`,
-                    flexShrink: 0,
-                  }}
-                />
-
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <strong
-                    style={{
-                      display: 'block',
-                      color: '#eaf0ff',
-                      fontSize: '0.74rem',
-                    }}
-                  >
-                    {event.event}
-                  </strong>
-
-                  <span
-                    style={{
-                      display: 'block',
-                      marginTop: '0.2rem',
-                      color: '#8b99b5',
-                      fontSize: '0.63rem',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {event.device} · {event.location}
-                    <br />
-                    {event.date} · {event.time}
-                  </span>
-                </span>
-
-                <span
-                  style={{
-                    color: event.color,
-                    fontSize: '0.61rem',
-                    fontWeight: 800,
-                  }}
-                >
-                  {event.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={ShieldAlert}
-            title="Session Security Alerts"
-            description="Alerts related to device access, remote control, and session risk."
-          />
-
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            {securityAlerts.map((alert) => {
-              const color =
-                alert.severity === 'Green'
-                  ? '#72e9b8'
-                  : alert.severity === 'Yellow'
-                    ? '#ffd07d'
-                    : '#ff7f9e';
-
-              return (
-                <div
-                  key={alert.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.55rem',
-                    padding: '0.7rem',
-                    borderRadius: '0.9rem',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '0.55rem',
-                      height: '0.55rem',
-                      marginTop: '0.3rem',
-                      borderRadius: '999px',
-                      background: color,
-                      boxShadow: `0 0 9px ${color}`,
-                    }}
-                  />
-
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <strong
-                      style={{
-                        display: 'block',
-                        color: '#eaf0ff',
-                        fontSize: '0.74rem',
-                      }}
-                    >
-                      {alert.title}
-                    </strong>
-
-                    <span
-                      style={{
-                        display: 'block',
-                        marginTop: '0.2rem',
-                        color: '#8b99b5',
-                        fontSize: '0.63rem',
-                      }}
-                    >
-                      {alert.description}
-                      <br />
-                      {alert.date} · {alert.time}
-                    </span>
-                  </span>
-
-                  <span
-                    style={{
-                      color,
-                      fontSize: '0.61rem',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {alert.status}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={Bell}
-            title="Session Notifications"
-            description="Choose which device and session events should be reported to you."
-          />
-
-          {[
-            ['newDevice', 'New Device Alerts', 'Notify me when a new device signs in.', MonitorSmartphone],
-            ['trustedDevice', 'Trusted Device Alerts', 'Notify me when device trust changes.', ShieldCheck],
-            ['remoteLogout', 'Remote Logout Alerts', 'Notify me when a session is remotely logged out.', Lock],
-            ['autoLogout', 'Auto Logout Alerts', 'Notify me when an inactive session expires.', Clock3],
-            ['suspiciousLogin', 'Suspicious Login Alerts', 'Notify me about unusual logins.', AlertTriangle],
-            ['deviceLocation', 'Device Location Alerts', 'Notify me when device location changes.', MapPin],
-            ['sessionExpiry', 'Session Expiry Alerts', 'Notify me before a session expires.', Clock3],
-          ].map(([id, title, description, Icon]) => (
-            <div
-              key={id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.6rem',
-                padding: '0.68rem 0',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-              }}
-            >
-              <Icon size={15} color="#aebcda" />
-
-              <span style={{ minWidth: 0, flex: 1 }}>
-                <strong
-                  style={{
-                    display: 'block',
-                    color: '#e9efff',
-                    fontSize: '0.74rem',
-                  }}
-                >
-                  {title}
-                </strong>
-
-                <span
-                  style={{
-                    display: 'block',
-                    marginTop: '0.18rem',
-                    color: '#8997b3',
-                    fontSize: '0.64rem',
-                  }}
-                >
-                  {description}
-                </span>
-              </span>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={notifications[id]}
-                aria-label={`Toggle ${title}`}
-                onClick={() => toggleNotification(id)}
-                style={{
-                  width: '2.45rem',
-                  height: '1.35rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: notifications[id] ? 'flex-end' : 'flex-start',
-                  padding: '0.15rem',
-                  border: 0,
-                  borderRadius: '999px',
-                  background: notifications[id]
-                    ? 'linear-gradient(135deg, #7c5cff, #4dd7ff)'
-                    : 'rgba(255,255,255,0.12)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  style={{
-                    width: '1.05rem',
-                    height: '1.05rem',
-                    borderRadius: '999px',
-                    background: '#fff',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                  }}
-                />
-              </button>
-            </div>
-          ))}
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={RefreshCw}
-            title="Background Session Systems"
-            description="Internal services that continuously protect active sessions and devices."
-          />
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-              gap: '0.5rem',
-            }}
-          >
-            {backgroundSystems.map(([title, status, Icon]) => (
-              <div
-                key={title}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.65rem',
-                  borderRadius: '0.85rem',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <Icon size={15} color="#a9b8d6" />
-
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <strong
-                    style={{
-                      display: 'block',
-                      color: '#dfe7fa',
-                      fontSize: '0.67rem',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {title}
-                  </strong>
-
-                  <span style={{ display: 'block', marginTop: '0.25rem' }}>
-                    <StatusPill status={status} />
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </GlassSection>
-
-        <GlassSection>
-          <SectionHeader
-            icon={Sparkles}
-            title="Aarush AI Session Security (Coming Soon)"
-            description="Future AI-powered session protection features are prepared for the security platform."
-          />
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: '0.55rem',
-            }}
-          >
-            {aiSessionItems.map(([title, description, Icon]) => (
-              <div
-                key={title}
-                style={{
-                  position: 'relative',
-                  minHeight: '5.1rem',
-                  padding: '0.8rem',
-                  borderRadius: '1rem',
-                  background: 'rgba(255,255,255,0.025)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  opacity: 0.72,
-                }}
-              >
-                <span
-                  style={{
-                    width: '2rem',
-                    height: '2rem',
-                    display: 'grid',
-                    placeItems: 'center',
-                    borderRadius: '0.7rem',
-                    background: 'rgba(124,92,255,0.12)',
-                    color: '#b8aaff',
-                  }}
-                >
-                  <Icon size={15} />
-                </span>
-
-                <strong
-                  style={{
-                    display: 'block',
-                    marginTop: '0.55rem',
-                    color: '#e1e8f9',
-                    fontSize: '0.75rem',
-                    fontWeight: 850,
-                  }}
-                >
-                  {title}
-                </strong>
-
-                <p
-                  style={{
-                    margin: '0.25rem 0 0',
-                    color: '#8794b0',
-                    fontSize: '0.67rem',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {description}
-                </p>
-
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '0.7rem',
-                    right: '0.7rem',
-                    padding: '0.25rem 0.4rem',
-                    borderRadius: '999px',
-                    background: 'rgba(255,255,255,0.07)',
-                    color: '#9aa7c1',
-                    fontSize: '0.56rem',
-                    fontWeight: 800,
-                  }}
-                >
-                  Coming soon
-                </span>
-              </div>
-            ))}
-          </div>
-        </GlassSection>
-
-        {message ? (
-          <div
-            role="status"
-            style={{
-              position: 'fixed',
-              right: '1rem',
-              bottom: '5.7rem',
-              left: '1rem',
-              zIndex: 1100,
-              maxWidth: '520px',
-              margin: '0 auto',
-              padding: '0.75rem 0.9rem',
-              borderRadius: '0.9rem',
-              background: 'rgba(22,28,45,0.96)',
-              border: '1px solid rgba(124,92,255,0.25)',
-              boxShadow: '0 16px 40px rgba(0,0,0,0.35)',
-              color: '#dce6fa',
-              fontSize: '0.74rem',
-              lineHeight: 1.45,
-              textAlign: 'center',
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-            }}
-          >
-            {message}
-          </div>
-        ) : null}
-      </main>
-
-      <BottomNav />
-
-      <style>{`
-        button {
-          -webkit-tap-highlight-color: transparent;
-          transition: transform 180ms ease, filter 180ms ease, background 180ms ease;
-        }
-
-        button:not(:disabled):hover {
-          transform: translateY(-1px);
-          filter: brightness(1.08);
-        }
-
-        button:not(:disabled):active {
-          transform: scale(0.98);
-        }
-
-        select option {
-          background: #151b2b;
-          color: #edf3ff;
-        }
-
-        @media (min-width: 640px) {
-          main {
-            padding-left: 1.25rem !important;
-            padding-right: 1.25rem !important;
-          }
-        }
-      `}</style>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function LogOutIcon(props) {
-  return <ShieldAlert {...props} />;
+function Detail({ label, value }) {
+  return (
+    <div style={styles.detailRow}>
+      <span>{label}</span>
+      <strong>{value || 'Unavailable'}</strong>
+    </div>
+  );
 }
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    paddingBottom: '6.8rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  content: {
+    width: '100%',
+    maxWidth: '850px',
+    margin: '0 auto',
+    padding: '1rem 0.9rem',
+    display: 'grid',
+    gap: '0.9rem',
+  },
+
+  hero: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.8rem',
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+  },
+
+  heroIcon: {
+    width: '3rem',
+    height: '3rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '1rem',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+  },
+
+  heroCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  title: {
+    margin: 0,
+    fontSize: '1.08rem',
+    fontWeight: 850,
+  },
+
+  subtitle: {
+    margin: '0.25rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.74rem',
+    lineHeight: 1.5,
+  },
+
+  scoreCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(15,19,30,0.94))',
+    border: '1px solid rgba(124,92,255,0.24)',
+  },
+
+  scoreCircle: {
+    width: '6.2rem',
+    height: '6.2rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '999px',
+    background:
+      'conic-gradient(#4dd7ff 95%, rgba(255,255,255,0.08) 95% 100%)',
+    padding: '0.45rem',
+  },
+
+  scoreInner: {
+    width: '100%',
+    height: '100%',
+    display: 'grid',
+    placeItems: 'center',
+    alignContent: 'center',
+    borderRadius: '999px',
+    background: '#101624',
+  },
+
+  scoreTitle: {
+    margin: 0,
+    fontSize: '0.96rem',
+  },
+
+  scoreText: {
+    margin: '0.35rem 0 0',
+    color: '#96a3bf',
+    fontSize: '0.72rem',
+    lineHeight: 1.5,
+  },
+
+  card: {
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+  },
+
+  emergencyCard: {
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background:
+      'linear-gradient(135deg, rgba(255,79,122,0.12), rgba(15,19,30,0.94))',
+    border: '1px solid rgba(255,79,122,0.22)',
+  },
+
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    marginBottom: '0.8rem',
+  },
+
+  sectionIcon: {
+    width: '2.15rem',
+    height: '2.15rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.7rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.12))',
+    color: '#dce8ff',
+  },
+
+  emergencyIcon: {
+    background: 'rgba(255,79,122,0.14)',
+    color: '#ff9fba',
+  },
+
+  sectionTitle: {
+    margin: 0,
+    fontSize: '0.92rem',
+    fontWeight: 850,
+  },
+
+  overviewGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.55rem',
+  },
+
+  overview: {
+    minHeight: '5.1rem',
+    display: 'grid',
+    alignContent: 'center',
+    gap: '0.18rem',
+    padding: '0.7rem',
+    borderRadius: '0.95rem',
+    background: 'rgba(15,19,30,0.9)',
+    border: '1px solid rgba(255,255,255,0.08)',
+  },
+
+  overviewIcon: {
+    width: '1.8rem',
+    height: '1.8rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '0.6rem',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#9deeff',
+  },
+
+  sessionList: {
+    display: 'grid',
+    gap: '0.55rem',
+  },
+
+  sessionCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.65rem',
+    padding: '0.75rem',
+    borderRadius: '0.95rem',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.07)',
+  },
+
+  deviceIcon: {
+    width: '2.35rem',
+    height: '2.35rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '0.7rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.1))',
+    color: '#dce8ff',
+  },
+
+  sessionCopy: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '0.2rem',
+    flex: 1,
+  },
+
+  sessionTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.35rem',
+  },
+
+  currentBadge: {
+    padding: '0.2rem 0.35rem',
+    borderRadius: '999px',
+    background: 'rgba(77,215,255,0.12)',
+    color: '#9deeff',
+    fontSize: '0.55rem',
+    fontWeight: 850,
+  },
+
+  trustedBadge: {
+    padding: '0.2rem 0.35rem',
+    borderRadius: '999px',
+    background: 'rgba(130,233,193,0.12)',
+    color: '#82e9c1',
+    fontSize: '0.55rem',
+    fontWeight: 850,
+  },
+
+  inlineActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.35rem',
+    marginTop: '0.35rem',
+  },
+
+  smallButton: {
+    minHeight: '1.9rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '0 0.55rem',
+    border: '1px solid rgba(124,92,255,0.28)',
+    borderRadius: '999px',
+    background: 'rgba(124,92,255,0.1)',
+    color: '#dce5f8',
+    fontSize: '0.6rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  smallDangerButton: {
+    minHeight: '1.9rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '0 0.55rem',
+    border: '1px solid rgba(255,79,122,0.22)',
+    borderRadius: '999px',
+    background: 'rgba(255,79,122,0.08)',
+    color: '#ffb1c8',
+    fontSize: '0.6rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  trustedRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.55rem',
+    padding: '0.7rem',
+    borderRadius: '0.85rem',
+    background: 'rgba(255,255,255,0.04)',
+  },
+
+  action: {
+    width: '100%',
+    minHeight: '2.6rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    marginBottom: '0.5rem',
+    padding: '0.65rem 0.7rem',
+    border: '1px solid rgba(124,92,255,0.25)',
+    borderRadius: '0.8rem',
+    background:
+      'linear-gradient(135deg, rgba(124,92,255,0.17), rgba(77,215,255,0.08))',
+    color: '#eaf0ff',
+    textAlign: 'left',
+    fontSize: '0.7rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  dangerAction: {
+    borderColor: 'rgba(255,79,122,0.22)',
+    background: 'rgba(255,79,122,0.08)',
+    color: '#ffb1c8',
+  },
+
+  timeline: {
+    display: 'grid',
+    gap: '0.15rem',
+  },
+
+  timelineItem: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.55rem',
+    padding: '0.65rem 0',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+
+  timelineDot: {
+    width: '0.5rem',
+    height: '0.5rem',
+    marginTop: '0.3rem',
+    flexShrink: 0,
+    borderRadius: '999px',
+  },
+
+  timelineCopy: {
+    display: 'grid',
+    gap: '0.18rem',
+  },
+
+  systemGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '0.45rem',
+  },
+
+  systemRow: {
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.35rem',
+    padding: '0.55rem',
+    borderRadius: '0.7rem',
+    background: 'rgba(255,255,255,0.04)',
+  },
+
+  exportGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '0.45rem',
+  },
+
+  exportButton: {
+    minHeight: '2.5rem',
+    display: 'grid',
+    placeItems: 'center',
+    gap: '0.25rem',
+    padding: '0.4rem',
+    border: '1px solid rgba(124,92,255,0.25)',
+    borderRadius: '0.75rem',
+    background: 'rgba(124,92,255,0.1)',
+    color: '#eaf0ff',
+    fontSize: '0.6rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  preferenceList: {
+    display: 'grid',
+    gap: '0.35rem',
+  },
+
+  preference: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.6rem',
+    padding: '0.65rem 0.7rem',
+    borderRadius: '0.7rem',
+    background: 'rgba(255,255,255,0.04)',
+    color: '#cbd6ec',
+    fontSize: '0.7rem',
+  },
+
+  checkbox: {
+    width: '1.1rem',
+    height: '1.1rem',
+    accentColor: '#7c5cff',
+  },
+
+  modalBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1300,
+    display: 'grid',
+    placeItems: 'center',
+    padding: '1rem',
+    background: 'rgba(2,5,10,0.72)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+  },
+
+  modal: {
+    width: 'min(100%, 480px)',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    padding: '1rem',
+    borderRadius: '1.25rem',
+    background: 'rgba(17,22,35,0.98)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 24px 70px rgba(0,0,0,0.5)',
+  },
+
+  modalHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.6rem',
+    marginBottom: '0.8rem',
+  },
+
+  closeButton: {
+    width: '2.1rem',
+    height: '2.1rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#dce5f8',
+    cursor: 'pointer',
+  },
+
+  detailList: {
+    display: 'grid',
+    gap: '0.35rem',
+  },
+
+  detailRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+    padding: '0.6rem 0',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    color: '#96a3bf',
+    fontSize: '0.7rem',
+  },
+
+  modalActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.4rem',
+    marginTop: '0.9rem',
+  },
+
+  emptyText: {
+    margin: 0,
+    color: '#96a3bf',
+    fontSize: '0.74rem',
+  },
+
+  toast: {
+    position: 'fixed',
+    right: '1rem',
+    bottom: '6.2rem',
+    left: '1rem',
+    zIndex: 1400,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.7rem',
+    width: 'fit-content',
+    maxWidth: 'calc(100% - 2rem)',
+    margin: '0 auto',
+    padding: '0.75rem 0.9rem',
+    borderRadius: '999px',
+    background: 'rgba(17,22,35,0.97)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    color: '#eaf0ff',
+    fontSize: '0.72rem',
+    fontWeight: 750,
+  },
+
+  toastClose: {
+    width: '1.5rem',
+    height: '1.5rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: 0,
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#aab6cf',
+    cursor: 'pointer',
+  },
+};
