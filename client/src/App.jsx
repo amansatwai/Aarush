@@ -8,6 +8,11 @@ import {
   useNavigate,
 } from 'react-router-dom';
 import { Lock, ShieldCheck, UserRound } from 'lucide-react';
+
+import { NotificationProvider } from './context/NotificationContext';
+import { supabase } from './lib/supabase';
+import './App.css';
+
 import ControlsPage from './pages/ControlsPage';
 import HelpPage from './pages/HelpPage';
 import Splash from './pages/Splash';
@@ -26,6 +31,13 @@ import ProfileSettings from './pages/ProfileSettings';
 import AccessibilitySettings from './pages/AccessibilitySettings';
 import LanguageSettings from './pages/LanguageSettings';
 import CreatorAnalytics from './pages/CreatorAnalytics';
+
+import FollowRequestsPage from './pages/FollowRequestsPage';
+import FollowersPage from './pages/FollowersPage';
+import FollowingPage from './pages/FollowingPage';
+import BlockedUsersPage from './pages/BlockedUsersPage';
+import CloseFriendsPage from './pages/CloseFriendsPage';
+import SocialPrivacySettings from './pages/SocialPrivacySettings';
 
 import NotificationsPage from './pages/NotificationsPage';
 import NotificationCenter from './pages/NotificationCenter';
@@ -56,9 +68,6 @@ import PayoutSettings from './pages/PayoutSettings';
 import AccountSwitchPage from './pages/AccountSwitchPage';
 import LogoutSessionPage from './pages/LogoutSessionPage';
 
-import { supabase } from './lib/supabase';
-import './App.css';
-
 const ONE_TAP_LOCK_KEY = 'aarush_one_tap_lock_enabled';
 const GAZE_LOCK_KEY = 'aarush_gaze_lock_enabled';
 
@@ -71,6 +80,15 @@ const GUEST_KEYS = {
 const GUEST_RESTRICTED_ROUTES = [
   '/upload',
   '/chats',
+  '/chat',
+
+  '/follow-requests',
+  '/followers',
+  '/following',
+  '/blocked-users',
+  '/close-friends',
+  '/social-privacy-settings',
+
   '/privacy',
   '/privacy-center',
   '/privacy-dashboard',
@@ -84,7 +102,9 @@ const GUEST_RESTRICTED_ROUTES = [
   '/app-lock-settings',
   '/app-lock',
   '/call-privacy-center',
+  '/call-privacy',
   '/aarush-ai-security',
+  '/aarush-ai',
   '/memories-vault',
   '/workspace',
   '/monetization-center',
@@ -116,8 +136,11 @@ function isGuestSessionActive() {
   }
 
   return (
-    window.localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
-    window.localStorage.getItem(GUEST_KEYS.guestSession) === 'active'
+    window.localStorage.getItem(GUEST_KEYS.isGuest) ===
+      'true' &&
+    window.localStorage.getItem(
+      GUEST_KEYS.guestSession
+    ) === 'active'
   );
 }
 
@@ -127,8 +150,12 @@ function clearGuestSession() {
   }
 
   window.localStorage.removeItem(GUEST_KEYS.isGuest);
-  window.localStorage.removeItem(GUEST_KEYS.guestSession);
-  window.localStorage.removeItem(GUEST_KEYS.guestProfile);
+  window.localStorage.removeItem(
+    GUEST_KEYS.guestSession
+  );
+  window.localStorage.removeItem(
+    GUEST_KEYS.guestProfile
+  );
 }
 
 function isRestrictedGuestRoute(pathname) {
@@ -141,59 +168,17 @@ function isRestrictedGuestRoute(pathname) {
 
 function LoadingScreen() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '1rem',
-        background:
-          'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
-        color: '#f4f7ff',
-      }}
-    >
-      <div
-        style={{
-          width: 'min(100%, 380px)',
-          padding: '1.5rem',
-          borderRadius: '1.5rem',
-          background: 'rgba(15,19,30,0.92)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 24px 70px rgba(0,0,0,0.38)',
-          textAlign: 'center',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-        }}
-      >
-        <div
-          style={{
-            width: '4rem',
-            height: '4rem',
-            margin: '0 auto 1rem',
-            borderRadius: '1.25rem',
-            display: 'grid',
-            placeItems: 'center',
-            background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-            color: '#fff',
-            boxShadow: '0 0 32px rgba(124,92,255,0.28)',
-            animation: 'aarush-loading-pulse 1.5s ease-in-out infinite',
-          }}
-        >
+    <div style={styles.loadingPage}>
+      <div style={styles.loadingCard}>
+        <div style={styles.loadingIcon}>
           <ShieldCheck size={28} />
         </div>
 
-        <strong style={{ display: 'block', fontSize: '1.06rem' }}>
+        <strong style={styles.loadingTitle}>
           Preparing Aarush
         </strong>
 
-        <span
-          style={{
-            display: 'block',
-            marginTop: '0.35rem',
-            color: '#96a3bf',
-            fontSize: '0.82rem',
-          }}
-        >
+        <span style={styles.loadingSubtitle}>
           Restoring your secure session…
         </span>
       </div>
@@ -224,66 +209,25 @@ function GuestAccessRequired() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '1rem',
-        background:
-          'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
-        color: '#f4f7ff',
-      }}
-    >
-      <main
-        style={{
-          width: 'min(100%, 430px)',
-          padding: '1.5rem',
-          borderRadius: '1.5rem',
-          background: 'rgba(15,19,30,0.94)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          boxShadow: '0 24px 70px rgba(0,0,0,0.42)',
-          textAlign: 'center',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-        }}
-      >
-        <div
-          style={{
-            width: '4rem',
-            height: '4rem',
-            margin: '0 auto 1rem',
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: '999px',
-            background:
-              'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-            color: '#fff',
-          }}
-        >
+    <div style={styles.accessPage}>
+      <main style={styles.accessCard}>
+        <div style={styles.accessIcon}>
           <UserRound size={26} />
         </div>
 
-        <h1 style={{ margin: 0, fontSize: '1.2rem' }}>
+        <h1 style={styles.accessTitle}>
           Sign in to continue
         </h1>
 
-        <p
-          style={{
-            margin: '0.65rem 0 1.25rem',
-            color: '#9aa7c1',
-            fontSize: '0.84rem',
-            lineHeight: 1.55,
-          }}
-        >
+        <p style={styles.accessText}>
           Create an Aarush account to use this feature.
         </p>
 
-        <div style={{ display: 'grid', gap: '0.55rem' }}>
+        <div style={styles.accessActions}>
           <button
             type="button"
             onClick={() => navigate('/login')}
-            style={guestStyles.primary}
+            style={styles.primaryButton}
           >
             Log In
           </button>
@@ -291,7 +235,7 @@ function GuestAccessRequired() {
           <button
             type="button"
             onClick={() => navigate('/signup')}
-            style={guestStyles.secondary}
+            style={styles.secondaryButton}
           >
             Create Account
           </button>
@@ -299,7 +243,7 @@ function GuestAccessRequired() {
           <button
             type="button"
             onClick={() => navigate('/home')}
-            style={guestStyles.secondary}
+            style={styles.secondaryButton}
           >
             Continue Browsing
           </button>
@@ -307,7 +251,7 @@ function GuestAccessRequired() {
           <button
             type="button"
             onClick={logoutGuest}
-            style={guestStyles.danger}
+            style={styles.dangerButton}
           >
             Logout
           </button>
@@ -330,7 +274,10 @@ function ProtectedRoute({
     return <Navigate to="/welcome" replace />;
   }
 
-  if (guest && isRestrictedGuestRoute(location.pathname)) {
+  if (
+    guest &&
+    isRestrictedGuestRoute(location.pathname)
+  ) {
     return <GuestAccessRequired />;
   }
 
@@ -356,65 +303,25 @@ function LockPage({ onUnlock }) {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '1rem',
-        background:
-          'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
-        color: '#f4f7ff',
-      }}
-    >
-      <main
-        style={{
-          width: 'min(100%, 420px)',
-          padding: '1.5rem',
-          borderRadius: '1.5rem',
-          background: 'rgba(15,19,30,0.92)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          boxShadow: '0 24px 70px rgba(0,0,0,0.42)',
-          textAlign: 'center',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-        }}
-      >
-        <div
-          style={{
-            width: '4.5rem',
-            height: '4.5rem',
-            margin: '0 auto 1rem',
-            borderRadius: '999px',
-            display: 'grid',
-            placeItems: 'center',
-            background:
-              'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
-            color: '#fff',
-          }}
-        >
+    <div style={styles.lockPage}>
+      <main style={styles.lockCard}>
+        <div style={styles.lockIcon}>
           <Lock size={28} />
         </div>
 
-        <h1 style={{ margin: 0, fontSize: '1.25rem' }}>
+        <h1 style={styles.lockTitle}>
           Aarush is locked
         </h1>
 
-        <p
-          style={{
-            margin: '0.6rem 0 1.25rem',
-            color: '#9aa7c1',
-            fontSize: '0.86rem',
-            lineHeight: 1.55,
-          }}
-        >
-          Unlock Aarush to continue to your protected session.
+        <p style={styles.lockText}>
+          Unlock Aarush to continue to your protected
+          session.
         </p>
 
         <button
           type="button"
           onClick={handleUnlock}
-          style={guestStyles.primary}
+          style={styles.primaryButton}
         >
           Unlock Aarush
         </button>
@@ -460,43 +367,23 @@ function AppRoutes({ session, locked, onUnlock }) {
     />
   );
 
+  const fallbackPath =
+    session || isGuestSessionActive()
+      ? locked && !isGuestSessionActive()
+        ? '/lock'
+        : '/home'
+      : '/welcome';
+
   return (
     <Routes>
       <Route
         path="/"
-        element={
-          session || isGuestSessionActive() ? (
-            locked && !isGuestSessionActive() ? (
-              <Navigate to="/lock" replace />
-            ) : (
-              <Navigate to="/home" replace />
-            )
-          ) : (
-            <Navigate to="/welcome" replace />
-          )
-        }
+        element={<Navigate to={fallbackPath} replace />}
       />
-<Route
-  path="/controls"
-  element={
-    <RouteElement
-      session={session}
-      locked={locked}
-      component={<ControlsPage />}
-    />
-  }
-/>
 
-<Route
-  path="/help"
-  element={
-    <RouteElement
-      session={session}
-      locked={locked}
-      component={<HelpPage />}
-    />
-  }
-/>
+      {protectedRoute('/controls', <ControlsPage />)}
+      {protectedRoute('/help', <HelpPage />)}
+
       <Route
         path="/splash"
         element={
@@ -548,78 +435,267 @@ function AppRoutes({ session, locked, onUnlock }) {
       {protectedRoute('/upload', <UploadPage />)}
 
       {protectedRoute('/profile', <ProfilePage />)}
-      {protectedRoute('/profile-settings', <ProfileSettings />)}
-      {protectedRoute('/profile/time-limited', <ProfileSettings />)}
-      {protectedRoute('/time-limited-profile', <ProfileSettings />)}
-      {protectedRoute('/creator-analytics', <CreatorAnalytics />)}
-      {protectedRoute('/accessibility-settings', <AccessibilitySettings />)}
-      {protectedRoute('/accessibility', <AccessibilitySettings />)}
-      {protectedRoute('/language-settings', <LanguageSettings />)}
-      {protectedRoute('/language', <LanguageSettings />)}
 
-      {protectedRoute('/notifications', <NotificationsPage />)}
-      {protectedRoute('/notification-center', <NotificationCenter />)}
-      {protectedRoute('/notification-privacy', <NotificationPrivacy />)}
-      {protectedRoute('/notification-settings', <NotificationPrivacy />)}
+      {protectedRoute(
+        '/follow-requests',
+        <FollowRequestsPage />
+      )}
+
+      {protectedRoute(
+        '/followers/:userId',
+        <FollowersPage />
+      )}
+
+      {protectedRoute(
+        '/following/:userId',
+        <FollowingPage />
+      )}
+
+      {protectedRoute(
+        '/blocked-users',
+        <BlockedUsersPage />
+      )}
+
+      {protectedRoute(
+        '/close-friends',
+        <CloseFriendsPage />
+      )}
+
+      {protectedRoute(
+        '/social-privacy-settings',
+        <SocialPrivacySettings />
+      )}
+
+      {protectedRoute(
+        '/profile-settings',
+        <ProfileSettings />
+      )}
+
+      {protectedRoute(
+        '/profile/time-limited',
+        <ProfileSettings />
+      )}
+
+      {protectedRoute(
+        '/time-limited-profile',
+        <ProfileSettings />
+      )}
+
+      {protectedRoute(
+        '/creator-analytics',
+        <CreatorAnalytics />
+      )}
+
+      {protectedRoute(
+        '/accessibility-settings',
+        <AccessibilitySettings />
+      )}
+
+      {protectedRoute(
+        '/accessibility',
+        <AccessibilitySettings />
+      )}
+
+      {protectedRoute(
+        '/language-settings',
+        <LanguageSettings />
+      )}
+
+      {protectedRoute(
+        '/language',
+        <LanguageSettings />
+      )}
+
+      {protectedRoute(
+        '/notifications',
+        <NotificationsPage />
+      )}
+
+      {protectedRoute(
+        '/notification-center',
+        <NotificationCenter />
+      )}
+
+      {protectedRoute(
+        '/notification-privacy',
+        <NotificationPrivacy />
+      )}
+
+      {protectedRoute(
+        '/notification-settings',
+        <NotificationPrivacy />
+      )}
 
       {protectedRoute('/chats', <ChatsPage />)}
-      {protectedRoute('/chats/:chatId', <ChatConversation />)}
+
+      {protectedRoute(
+        '/chat/:conversationId',
+        <ChatConversation />
+      )}
+
+      {protectedRoute(
+        '/chats/:conversationId',
+        <ChatConversation />
+      )}
 
       {protectedRoute('/privacy', <PrivacyCenter />)}
-      {protectedRoute('/privacy-center', <PrivacyCenter />)}
-      {protectedRoute('/privacy-dashboard', <PrivacyDashboard />)}
-      {protectedRoute('/privacy-innovations', <PrivacyInnovations />)}
-      {protectedRoute('/emergency-privacy', <EmergencyPrivacy />)}
-      {protectedRoute('/shoulder-surf', <ShoulderSurf />)}
-      {protectedRoute('/stealth-privacy', <StealthPrivacy />)}
-      {protectedRoute('/private-safe-settings', <PrivateSafeSettings />)}
-      {protectedRoute('/decoy-vault', <PrivateSafeSettings />)}
-      {protectedRoute('/profile/decoy-vault', <PrivateSafeSettings />)}
 
-      {protectedRoute('/security-center', <SecurityCenter />)}
-      {protectedRoute('/security-settings', <SecurityCenter />)}
-      {protectedRoute('/profile/screen-recording', <SecurityCenter />)}
-      {protectedRoute('/screen-recording', <SecurityCenter />)}
-      {protectedRoute('/profile/screenshot-shield', <SecurityCenter />)}
-      {protectedRoute('/screenshot-shield', <SecurityCenter />)}
+      {protectedRoute(
+        '/privacy-center',
+        <PrivacyCenter />
+      )}
 
-      {protectedRoute('/app-lock-settings', <AppLockSettings />)}
-      {protectedRoute('/app-lock', <AppLockSettings />)}
-      {protectedRoute('/call-privacy-center', <CallPrivacyCenter />)}
-      {protectedRoute('/call-privacy', <CallPrivacyCenter />)}
-      {protectedRoute('/aarush-ai-security', <AarushAISecurity />)}
-      {protectedRoute('/aarush-ai', <AarushAISecurity />)}
-      {protectedRoute('/memories-vault', <MemoriesVault />)}
-      {protectedRoute('/vault', <MemoriesVault />)}
+      {protectedRoute(
+        '/privacy-dashboard',
+        <PrivacyDashboard />
+      )}
 
-      {protectedRoute('/monetization-center', <MonetizationCenter />)}
-      {protectedRoute('/pricing-plans', <PricingPlans />)}
-      {protectedRoute('/payout-settings', <PayoutSettings />)}
+      {protectedRoute(
+        '/privacy-innovations',
+        <PrivacyInnovations />
+      )}
 
-      {protectedRoute('/account-switch', <AccountSwitchPage />)}
-      {protectedRoute('/session-management', <LogoutSessionPage />)}
-      {protectedRoute('/logout', <LogoutSessionPage />)}
+      {protectedRoute(
+        '/emergency-privacy',
+        <EmergencyPrivacy />
+      )}
+
+      {protectedRoute(
+        '/shoulder-surf',
+        <ShoulderSurf />
+      )}
+
+      {protectedRoute(
+        '/stealth-privacy',
+        <StealthPrivacy />
+      )}
+
+      {protectedRoute(
+        '/private-safe-settings',
+        <PrivateSafeSettings />
+      )}
+
+      {protectedRoute(
+        '/decoy-vault',
+        <PrivateSafeSettings />
+      )}
+
+      {protectedRoute(
+        '/profile/decoy-vault',
+        <PrivateSafeSettings />
+      )}
+
+      {protectedRoute(
+        '/security-center',
+        <SecurityCenter />
+      )}
+
+      {protectedRoute(
+        '/security-settings',
+        <SecurityCenter />
+      )}
+
+      {protectedRoute(
+        '/profile/screen-recording',
+        <SecurityCenter />
+      )}
+
+      {protectedRoute(
+        '/screen-recording',
+        <SecurityCenter />
+      )}
+
+      {protectedRoute(
+        '/profile/screenshot-shield',
+        <SecurityCenter />
+      )}
+
+      {protectedRoute(
+        '/screenshot-shield',
+        <SecurityCenter />
+      )}
+
+      {protectedRoute(
+        '/app-lock-settings',
+        <AppLockSettings />
+      )}
+
+      {protectedRoute(
+        '/app-lock',
+        <AppLockSettings />
+      )}
+
+      {protectedRoute(
+        '/call-privacy-center',
+        <CallPrivacyCenter />
+      )}
+
+      {protectedRoute(
+        '/call-privacy',
+        <CallPrivacyCenter />
+      )}
+
+      {protectedRoute(
+        '/aarush-ai-security',
+        <AarushAISecurity />
+      )}
+
+      {protectedRoute(
+        '/aarush-ai',
+        <AarushAISecurity />
+      )}
+
+      {protectedRoute(
+        '/memories-vault',
+        <MemoriesVault />
+      )}
+
+      {protectedRoute(
+        '/vault',
+        <MemoriesVault />
+      )}
+
+      {protectedRoute(
+        '/monetization-center',
+        <MonetizationCenter />
+      )}
+
+      {protectedRoute(
+        '/pricing-plans',
+        <PricingPlans />
+      )}
+
+      {protectedRoute(
+        '/payout-settings',
+        <PayoutSettings />
+      )}
+
+      {protectedRoute(
+        '/account-switch',
+        <AccountSwitchPage />
+      )}
+
+      {protectedRoute(
+        '/session-management',
+        <LogoutSessionPage />
+      )}
+
+      {protectedRoute(
+        '/logout',
+        <LogoutSessionPage />
+      )}
 
       {protectedRoute(
         '/lock',
         <LockPage onUnlock={onUnlock} />,
-        { allowWhileLocked: true }
+        {
+          allowWhileLocked: true,
+        }
       )}
 
       <Route
         path="*"
-        element={
-          <Navigate
-            to={
-              session || isGuestSessionActive()
-                ? locked && !isGuestSessionActive()
-                  ? '/lock'
-                  : '/home'
-                : '/welcome'
-            }
-            replace
-          />
-        }
+        element={<Navigate to={fallbackPath} replace />}
       />
     </Routes>
   );
@@ -647,9 +723,13 @@ export default function App() {
           setSession(null);
           setLocked(false);
         } else {
-          setSession(error ? null : data.session || null);
+          setSession(
+            error ? null : data.session || null
+          );
+
           setLocked(
-            localStorage.getItem(ONE_TAP_LOCK_KEY) === 'true'
+            localStorage.getItem(ONE_TAP_LOCK_KEY) ===
+              'true'
           );
         }
       } catch {
@@ -704,7 +784,10 @@ export default function App() {
     }
 
     if (!localStorage.getItem(ONE_TAP_LOCK_KEY)) {
-      localStorage.setItem(ONE_TAP_LOCK_KEY, 'false');
+      localStorage.setItem(
+        ONE_TAP_LOCK_KEY,
+        'false'
+      );
     }
   }, []);
 
@@ -714,23 +797,171 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppRoutes
-        session={session}
-        locked={locked}
-        onUnlock={() => {
-          setLocked(false);
-          localStorage.setItem(
-            ONE_TAP_LOCK_KEY,
-            'false'
-          );
-        }}
-      />
+      <NotificationProvider>
+        <AppRoutes
+          session={session}
+          locked={locked}
+          onUnlock={() => {
+            setLocked(false);
+            localStorage.setItem(
+              ONE_TAP_LOCK_KEY,
+              'false'
+            );
+          }}
+        />
+      </NotificationProvider>
     </BrowserRouter>
   );
 }
 
-const guestStyles = {
-  primary: {
+const styles = {
+  loadingPage: {
+    minHeight: '100vh',
+    display: 'grid',
+    placeItems: 'center',
+    padding: '1rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  loadingCard: {
+    width: 'min(100%, 380px)',
+    padding: '1.5rem',
+    borderRadius: '1.5rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 24px 70px rgba(0,0,0,0.38)',
+    textAlign: 'center',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+  },
+
+  loadingIcon: {
+    width: '4rem',
+    height: '4rem',
+    display: 'grid',
+    placeItems: 'center',
+    margin: '0 auto 1rem',
+    borderRadius: '1.25rem',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+    boxShadow: '0 0 32px rgba(124,92,255,0.28)',
+    animation:
+      'aarush-loading-pulse 1.5s ease-in-out infinite',
+  },
+
+  loadingTitle: {
+    display: 'block',
+    fontSize: '1.06rem',
+  },
+
+  loadingSubtitle: {
+    display: 'block',
+    marginTop: '0.35rem',
+    color: '#96a3bf',
+    fontSize: '0.82rem',
+  },
+
+  accessPage: {
+    minHeight: '100vh',
+    display: 'grid',
+    placeItems: 'center',
+    padding: '1rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  accessCard: {
+    width: 'min(100%, 430px)',
+    padding: '1.5rem',
+    borderRadius: '1.5rem',
+    background: 'rgba(15,19,30,0.94)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    boxShadow: '0 24px 70px rgba(0,0,0,0.42)',
+    textAlign: 'center',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+  },
+
+  accessIcon: {
+    width: '4rem',
+    height: '4rem',
+    display: 'grid',
+    placeItems: 'center',
+    margin: '0 auto 1rem',
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
+    color: '#fff',
+  },
+
+  accessTitle: {
+    margin: 0,
+    fontSize: '1.2rem',
+  },
+
+  accessText: {
+    margin: '0.65rem 0 1.25rem',
+    color: '#9aa7c1',
+    fontSize: '0.84rem',
+    lineHeight: 1.55,
+  },
+
+  accessActions: {
+    display: 'grid',
+    gap: '0.55rem',
+  },
+
+  lockPage: {
+    minHeight: '100vh',
+    display: 'grid',
+    placeItems: 'center',
+    padding: '1rem',
+    background:
+      'radial-gradient(circle at top, rgba(34,43,68,0.52) 0%, rgba(10,13,20,1) 42%, rgba(7,9,14,1) 100%)',
+    color: '#f4f7ff',
+  },
+
+  lockCard: {
+    width: 'min(100%, 420px)',
+    padding: '1.5rem',
+    borderRadius: '1.5rem',
+    background: 'rgba(15,19,30,0.92)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    boxShadow: '0 24px 70px rgba(0,0,0,0.42)',
+    textAlign: 'center',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+  },
+
+  lockIcon: {
+    width: '4.5rem',
+    height: '4.5rem',
+    display: 'grid',
+    placeItems: 'center',
+    margin: '0 auto 1rem',
+    borderRadius: '999px',
+    background:
+      'linear-gradient(135deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
+    color: '#fff',
+  },
+
+  lockTitle: {
+    margin: 0,
+    fontSize: '1.25rem',
+  },
+
+  lockText: {
+    margin: '0.6rem 0 1.25rem',
+    color: '#9aa7c1',
+    fontSize: '0.86rem',
+    lineHeight: 1.55,
+  },
+
+  primaryButton: {
     width: '100%',
     minHeight: '2.75rem',
     border: 0,
@@ -744,7 +975,7 @@ const guestStyles = {
     cursor: 'pointer',
   },
 
-  secondary: {
+  secondaryButton: {
     width: '100%',
     minHeight: '2.75rem',
     border: '1px solid rgba(124,92,255,0.3)',
@@ -757,7 +988,7 @@ const guestStyles = {
     cursor: 'pointer',
   },
 
-  danger: {
+  dangerButton: {
     width: '100%',
     minHeight: '2.75rem',
     border: '1px solid rgba(255,79,122,0.22)',

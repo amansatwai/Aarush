@@ -1,265 +1,315 @@
-const NOTIFICATION_STATE_KEY = 'aarush_notification_state';
+import { supabase } from '../lib/supabase';
 
-const DEFAULT_STATE = {
-  healthScore: 97,
-  privacyMode: true,
-  genericMode: true,
-  lockScreenMode: 'App name only',
-  focusMode: 'None',
-  categories: {},
-  filters: {
-    unread: true,
-    today: false,
-    yesterday: false,
-    thisWeek: false,
-    mentions: false,
-    directMessages: false,
-    groups: false,
-    security: false,
-    ai: false,
-    workspace: false,
-    highPriority: false,
-    hidden: false,
-    archived: false,
-    silent: false,
-  },
-  privacy: {
-    hideMessageContent: true,
-    hideSenderName: true,
-    hideGroupName: true,
-    hideMediaPreview: true,
-    hideAiAlerts: false,
-    hideSecurityDetails: false,
-    genericNotificationMode: true,
-    lockScreenPrivacy: true,
-    notificationRedaction: true,
-    privateNotificationMode: true,
-    stealthNotificationMode: false,
-  },
-  scheduling: {
-    quietHours: false,
-    sleepSchedule: false,
-    workSchedule: false,
-    weekendSchedule: false,
-    timeBasedDelivery: false,
-    batchDelivery: false,
-    hourlyDigest: false,
-    dailyDigest: true,
-    aiSmartTiming: true,
-  },
+const NOTIFICATIONS_TABLE = 'notifications';
+const PAGE_SIZE = 25;
+
+const NOTIFICATION_TYPES = [
+  'like',
+  'comment',
+  'follow',
+  'story_view',
+  'story_reply',
+  'message',
+  'mention',
+  'tag',
+  'security',
+  'system',
+];
+
+const GUEST_KEYS = {
+  isGuest: 'aarush_is_guest',
+  guestSession: 'aarush_guest_session',
 };
 
-export const categories = [
-  'Messages',
-  'Group Chats',
-  'Mentions',
-  'Replies',
-  'Reactions',
-  'Follow Requests',
-  'Followers',
-  'Posts',
-  'Reels',
-  'Stories',
-  'Memories',
-  'Vault',
-  'Security',
-  'Login Alerts',
-  'Device Alerts',
-  'AI Alerts',
-  'Workspace',
-  'Marketplace',
-  'System Updates',
-];
-
-export const focusModes = [
-  'None',
-  'Work',
-  'Study',
-  'Sleep',
-  'Travel',
-  'Meeting',
-  'Driving',
-  'Gaming',
-  'Family',
-  'Custom',
-];
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function readState() {
+function isGuestMode() {
   if (typeof window === 'undefined') {
-    return clone(DEFAULT_STATE);
+    return false;
   }
 
-  try {
-    const saved = window.localStorage.getItem(NOTIFICATION_STATE_KEY);
-
-    if (!saved) {
-      return clone(DEFAULT_STATE);
-    }
-
-    const parsed = JSON.parse(saved);
-
-    return {
-      ...clone(DEFAULT_STATE),
-      ...parsed,
-      filters: { ...DEFAULT_STATE.filters, ...(parsed.filters || {}) },
-      privacy: { ...DEFAULT_STATE.privacy, ...(parsed.privacy || {}) },
-      scheduling: {
-        ...DEFAULT_STATE.scheduling,
-        ...(parsed.scheduling || {}),
-      },
-    };
-  } catch {
-    return clone(DEFAULT_STATE);
-  }
+  return (
+    window.localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
+    window.localStorage.getItem(
+      GUEST_KEYS.guestSession
+    ) !== null
+  );
 }
 
-function saveState(state) {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(
-      NOTIFICATION_STATE_KEY,
-      JSON.stringify(state)
+async function getAuthenticatedUser() {
+  if (isGuestMode()) {
+    throw new Error(
+      'Notifications are unavailable in Guest Mode.'
+    );
+  }
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!user) {
+    throw new Error(
+      'Sign in to access notifications.'
+    );
+  }
+
+  return user;
+}
+
+function validateNotificationType(type) {
+  if (!NOTIFICATION_TYPES.includes(type)) {
+    throw new Error(
+      `Unsupported notification type: ${type}`
     );
   }
 }
 
-export function getNotificationState() {
-  return readState();
-}
+export async function createNotification({
+  recipientId,
+  actorId = null,
+  type,
+  entityId = null,
+  entityType = null,
+  title,
+  body = '',
+  imageUrl = null,
+}) {
+  const currentUser = await getAuthenticatedUser();
 
-export function updateNotificationState(updates) {
-  const next = {
-    ...readState(),
-    ...updates,
-  };
-
-  saveState(next);
-  return next;
-}
-
-export function updateNestedNotificationSetting(
-  section,
-  id,
-  value
-) {
-  const current = readState();
-
-  const next = {
-    ...current,
-    [section]: {
-      ...current[section],
-      [id]: value,
-    },
-  };
-
-  saveState(next);
-  return next;
-}
-
-export function getNotificationHealthScore(state = readState()) {
-  const enabledPrivacy = Object.values(state.privacy).filter(Boolean).length;
-  const enabledScheduling = Object.values(state.scheduling).filter(Boolean).length;
-
-  return Math.min(100, Math.max(70, 82 + enabledPrivacy + enabledScheduling));
-}
-
-export function getNotificationHealthLevel(score) {
-  if (score >= 92) return 'Fully Protected';
-  if (score >= 78) return 'Organized';
-  if (score >= 60) return 'Moderate';
-  return 'Noisy';
-}
-
-export function getNotificationSummary() {
-  return {
-    messages: 12,
-    mentions: 3,
-    securityAlerts: 1,
-    memoryReminders: 2,
-    workspaceUpdates: 1,
-  };
-}
-
-export function getNotificationEvents() {
-  return [
-    {
-      id: 'notification-1',
-      title: 'New message from Aman',
-      category: 'Messages',
-      body: 'You have a new protected message.',
-      time: '10:42 AM',
-      date: 'Today',
-      priority: 'High',
-      unread: true,
-      hidden: false,
-    },
-    {
-      id: 'notification-2',
-      title: 'Security alert',
-      category: 'Security',
-      body: 'A new device requires review.',
-      time: '9:18 AM',
-      date: 'Today',
-      priority: 'High',
-      unread: true,
-      hidden: false,
-    },
-    {
-      id: 'notification-3',
-      title: 'You were mentioned',
-      category: 'Mentions',
-      body: 'You were mentioned in a community post.',
-      time: 'Yesterday, 8:20 PM',
-      date: 'Yesterday',
-      priority: 'Normal',
-      unread: false,
-      hidden: false,
-    },
-    {
-      id: 'notification-4',
-      title: 'Memory reminder',
-      category: 'Memories',
-      body: 'A private memory is ready to revisit.',
-      time: 'Monday, 6:04 PM',
-      date: 'Monday',
-      priority: 'Normal',
-      unread: false,
-      hidden: true,
-    },
-  ];
-}
-
-export function redactNotification(notification, state = readState()) {
-  if (
-    !state.privacy.genericNotificationMode &&
-    !state.privacy.hideMessageContent
-  ) {
-    return notification;
+  if (!recipientId) {
+    throw new Error('Notification recipient is required.');
   }
 
-  return {
-    ...notification,
-    title: state.privacy.hideSenderName
-      ? 'Aarush notification'
-      : notification.title,
-    body: state.privacy.hideMessageContent
-      ? 'You have a new notification.'
-      : notification.body,
+  if (!title?.trim()) {
+    throw new Error('Notification title is required.');
+  }
+
+  validateNotificationType(type);
+
+  const resolvedActorId =
+    actorId === undefined ? currentUser.id : actorId;
+
+  if (
+    resolvedActorId &&
+    resolvedActorId !== currentUser.id
+  ) {
+    throw new Error(
+      'The notification actor must be the authenticated user.'
+    );
+  }
+
+  const { data, error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .insert({
+      recipient_id: recipientId,
+      actor_id: resolvedActorId,
+      type,
+      entity_id: entityId,
+      entity_type: entityType,
+      title: title.trim(),
+      body: body?.trim() || null,
+      image_url: imageUrl,
+      read: false,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getNotifications({
+  page = 0,
+  pageSize = PAGE_SIZE,
+  unreadOnly = false,
+} = {}) {
+  await getAuthenticatedUser();
+
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from(NOTIFICATIONS_TABLE)
+    .select(`
+      id,
+      recipient_id,
+      actor_id,
+      type,
+      entity_id,
+      entity_type,
+      title,
+      body,
+      image_url,
+      read,
+      created_at,
+      actor:profiles!notifications_actor_id_fkey (
+        id,
+        username,
+        full_name,
+        avatar_url
+      )
+    `)
+    .order('created_at', {
+      ascending: false,
+    })
+    .range(from, to);
+
+  if (unreadOnly) {
+    query = query.eq('read', false);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function getUnreadCount() {
+  await getAuthenticatedUser();
+
+  const { count, error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .select('id', {
+      count: 'exact',
+      head: true,
+    })
+    .eq('read', false);
+
+  if (error) {
+    throw error;
+  }
+
+  return count || 0;
+}
+
+export async function markAsRead(notificationId) {
+  await getAuthenticatedUser();
+
+  if (!notificationId) {
+    throw new Error('Notification ID is required.');
+  }
+
+  const { data, error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .update({
+      read: true,
+    })
+    .eq('id', notificationId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function markAllAsRead() {
+  await getAuthenticatedUser();
+
+  const { error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .update({
+      read: true,
+    })
+    .eq('read', false);
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
+export async function deleteNotification(
+  notificationId
+) {
+  await getAuthenticatedUser();
+
+  if (!notificationId) {
+    throw new Error('Notification ID is required.');
+  }
+
+  const { error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .delete()
+    .eq('id', notificationId);
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
+export function subscribeToNotifications(callback) {
+  if (isGuestMode()) {
+    return () => {};
+  }
+
+  const channel = supabase
+    .channel('aarush-notifications')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: NOTIFICATIONS_TABLE,
+      },
+      callback
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: NOTIFICATIONS_TABLE,
+      },
+      callback
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: NOTIFICATIONS_TABLE,
+      },
+      callback
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
   };
 }
 
-export default {
-  categories,
-  focusModes,
-  getNotificationState,
-  updateNotificationState,
-  updateNestedNotificationSetting,
-  getNotificationHealthScore,
-  getNotificationHealthLevel,
-  getNotificationSummary,
-  getNotificationEvents,
-  redactNotification,
-};
+export function isNotificationType(type) {
+  return NOTIFICATION_TYPES.includes(type);
+}
+
+export function getNotificationTypeLabel(type) {
+  const labels = {
+    like: 'Like',
+    comment: 'Comment',
+    follow: 'Follow',
+    story_view: 'Story view',
+    story_reply: 'Story reply',
+    message: 'Message',
+    mention: 'Mention',
+    tag: 'Tag',
+    security: 'Security',
+    system: 'System',
+  };
+
+  return labels[type] || 'Notification';
+}

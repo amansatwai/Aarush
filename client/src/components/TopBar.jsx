@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,6 +16,7 @@ import {
   Laptop,
   LockKeyhole,
   Menu,
+  MessageCircle,
   Search,
   ShieldHalf,
   Smartphone,
@@ -17,6 +24,8 @@ import {
   Users,
   Video,
 } from 'lucide-react';
+import { useNotificationBadge } from '../hooks/useNotifications';
+import NotificationBadge from './NotificationBadge';
 
 const GAZE_LOCK_STORAGE_KEY = 'aarush_gaze_lock_enabled';
 const SECRET_ACCESS_INTERVAL = 300;
@@ -26,7 +35,8 @@ const LONG_PRESS_DURATION = 700;
 const ROUTES = Object.freeze({
   home: '/home',
   search: '/search',
-  notifications: '/notifications',
+  notifications: '/notification-center',
+  chats: '/chats',
   profile: '/profile',
   profileSettings: '/profile-settings',
   privacy: '/privacy-center',
@@ -77,7 +87,10 @@ function PreviewDeviceIcon({ device }) {
     return <Smartphone size={12} />;
   }
 
-  if (value.includes('laptop') || value.includes('windows')) {
+  if (
+    value.includes('laptop') ||
+    value.includes('windows')
+  ) {
     return <Laptop size={12} />;
   }
 
@@ -104,11 +117,18 @@ export default function TopBar({
   onGazeLockChange,
   onNotificationsClick,
   onSearchClick,
+  onChatClick,
   onSecretAccess,
   onAccountPreviewOpen,
+  onOneTapLock,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const {
+    unreadNotificationCount,
+    unreadMessageCount,
+  } = useNotificationBadge();
 
   const lastSecretTapRef = useRef(0);
   const lastNavigationRef = useRef({
@@ -124,6 +144,46 @@ export default function TopBar({
     useState(initialGazeLock);
   const [accountPreviewOpen, setAccountPreviewOpen] =
     useState(false);
+
+  const title = useMemo(() => {
+    if (profileMode && username) {
+      return username.startsWith('@')
+        ? username
+        : `@${username}`;
+    }
+
+    return pageTitle || 'Aarush';
+  }, [pageTitle, profileMode, username]);
+
+  const navigateSafely = useCallback(
+    (path, options = {}) => {
+      if (!path || !isBrowser()) {
+        return;
+      }
+
+      if (location.pathname === path) {
+        return;
+      }
+
+      const now = Date.now();
+      const previous = lastNavigationRef.current;
+
+      if (
+        previous.path === path &&
+        now - previous.time < NAVIGATION_DEBOUNCE
+      ) {
+        return;
+      }
+
+      lastNavigationRef.current = {
+        path,
+        time: now,
+      };
+
+      navigate(path, options);
+    },
+    [location.pathname, navigate]
+  );
 
   useEffect(() => {
     if (!isBrowser()) {
@@ -189,46 +249,6 @@ export default function TopBar({
     };
   }, [accountPreviewOpen]);
 
-  const title = useMemo(() => {
-    if (profileMode && username) {
-      return username.startsWith('@')
-        ? username
-        : `@${username}`;
-    }
-
-    return pageTitle || 'Aarush';
-  }, [pageTitle, profileMode, username]);
-
-  const navigateSafely = useCallback(
-    (path, options = {}) => {
-      if (!path || !isBrowser()) {
-        return;
-      }
-
-      if (location.pathname === path) {
-        return;
-      }
-
-      const now = Date.now();
-      const previous = lastNavigationRef.current;
-
-      if (
-        previous.path === path &&
-        now - previous.time < NAVIGATION_DEBOUNCE
-      ) {
-        return;
-      }
-
-      lastNavigationRef.current = {
-        path,
-        time: now,
-      };
-
-      navigate(path, options);
-    },
-    [location.pathname, navigate]
-  );
-
   const handleBack = useCallback(() => {
     if (typeof onBack === 'function') {
       onBack();
@@ -243,7 +263,7 @@ export default function TopBar({
     navigateSafely(ROUTES.home);
   }, [navigate, navigateSafely, onBack]);
 
-  const handleSecretAccessPointerUp = () => {
+  const handleSecretAccessPointerUp = useCallback(() => {
     if (typeof onSecretAccess !== 'function') {
       return;
     }
@@ -262,44 +282,54 @@ export default function TopBar({
     }
 
     lastSecretTapRef.current = now;
-  };
+  }, [onSecretAccess]);
 
-  const toggleGazeLock = () => {
+  const toggleGazeLock = useCallback(() => {
     setGazeLockEnabled((currentValue) => {
       const nextValue = !currentValue;
       onGazeLockChange?.(nextValue);
+      onOneTapLock?.(nextValue);
       return nextValue;
     });
-  };
+  }, [onGazeLockChange, onOneTapLock]);
 
-  const handleNotifications = () => {
+  const handleNotifications = useCallback(() => {
     if (typeof onNotificationsClick === 'function') {
       onNotificationsClick();
       return;
     }
 
     navigateSafely(ROUTES.notifications);
-  };
+  }, [navigateSafely, onNotificationsClick]);
 
-  const handleSearch = () => {
+  const handleChats = useCallback(() => {
+    if (typeof onChatClick === 'function') {
+      onChatClick();
+      return;
+    }
+
+    navigateSafely(ROUTES.chats);
+  }, [navigateSafely, onChatClick]);
+
+  const handleSearch = useCallback(() => {
     if (typeof onSearchClick === 'function') {
       onSearchClick();
       return;
     }
 
     navigateSafely(ROUTES.search);
-  };
+  }, [navigateSafely, onSearchClick]);
 
-  const clearLongPressTimer = () => {
+  const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
 
     pointerDownRef.current = false;
-  };
+  }, []);
 
-  const handleProfilePointerDown = () => {
+  const handleProfilePointerDown = useCallback(() => {
     pointerDownRef.current = true;
     longPressTriggeredRef.current = false;
 
@@ -316,99 +346,114 @@ export default function TopBar({
       onAccountPreviewOpen?.();
       longPressTimerRef.current = null;
     }, LONG_PRESS_DURATION);
-  };
+  }, [clearLongPressTimer, onAccountPreviewOpen]);
 
-  const handleProfilePointerUp = () => {
+  const handleProfilePointerUp = useCallback(() => {
     clearLongPressTimer();
-  };
+  }, [clearLongPressTimer]);
 
-  const handleProfilePointerCancel = () => {
+  const handleProfilePointerCancel = useCallback(() => {
     clearLongPressTimer();
     longPressTriggeredRef.current = false;
-  };
+  }, [clearLongPressTimer]);
 
-  const handleProfileClick = (event) => {
-    if (longPressTriggeredRef.current) {
+  const handleProfileClick = useCallback(
+    (event) => {
+      if (longPressTriggeredRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        longPressTriggeredRef.current = false;
+        return;
+      }
+
       event.preventDefault();
-      event.stopPropagation();
-      longPressTriggeredRef.current = false;
-      return;
-    }
+      navigateSafely(ROUTES.profile);
+    },
+    [navigateSafely]
+  );
 
-    event.preventDefault();
-    navigateSafely(ROUTES.profile);
-  };
-
-  const openAccountSwitch = () => {
+  const openAccountSwitch = useCallback(() => {
     setAccountPreviewOpen(false);
     navigateSafely('/account-switch');
-  };
+  }, [navigateSafely]);
 
-  const openLogin = () => {
+  const openLogin = useCallback(() => {
     setAccountPreviewOpen(false);
     navigateSafely('/login');
-  };
+  }, [navigateSafely]);
 
-  const openSignup = () => {
+  const openSignup = useCallback(() => {
     setAccountPreviewOpen(false);
     navigateSafely('/signup');
-  };
+  }, [navigateSafely]);
 
-  const openSessionManagement = () => {
+  const openSessionManagement = useCallback(() => {
     setAccountPreviewOpen(false);
     navigateSafely('/session-management');
-  };
+  }, [navigateSafely]);
 
-  const handleTimeLimitedProfile = () => {
+  const handleTimeLimitedProfile = useCallback(() => {
     if (typeof onTimeLimitedProfile === 'function') {
       onTimeLimitedProfile(!timeLimitedProfile);
       return;
     }
 
     navigateSafely(ROUTES.profileSettings);
-  };
+  }, [
+    navigateSafely,
+    onTimeLimitedProfile,
+    timeLimitedProfile,
+  ]);
 
-  const handleScreenRecording = () => {
+  const handleScreenRecording = useCallback(() => {
     if (typeof onScreenRecording === 'function') {
       onScreenRecording(!screenRecording);
       return;
     }
 
     navigateSafely(ROUTES.security);
-  };
+  }, [
+    navigateSafely,
+    onScreenRecording,
+    screenRecording,
+  ]);
 
-  const handleScreenshotShield = () => {
+  const handleScreenshotShield = useCallback(() => {
     if (typeof onScreenshotShield === 'function') {
       onScreenshotShield(!screenshotShield);
       return;
     }
 
     navigateSafely(ROUTES.security);
-  };
+  }, [
+    navigateSafely,
+    onScreenshotShield,
+    screenshotShield,
+  ]);
 
-  const handleDecoyVault = () => {
+  const handleDecoyVault = useCallback(() => {
     if (typeof onDecoyVault === 'function') {
       onDecoyVault(!decoyVault);
       return;
     }
 
     navigateSafely(ROUTES.privacy);
-  };
+  }, [decoyVault, navigateSafely, onDecoyVault]);
 
   const baseButtonStyle = {
     position: 'relative',
-    minWidth: '2.75rem',
-    height: '2.75rem',
+    minWidth: '2.65rem',
+    height: '2.65rem',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '0.38rem',
-    padding: '0 0.78rem',
-    borderRadius: '999px',
+    gap: '0.35rem',
+    padding: '0 0.7rem',
     border: '1px solid rgba(255,255,255,0.08)',
-    background: 'rgba(255,255,255,0.05)',
+    borderRadius: '999px',
     color: '#edf3ff',
-    fontSize: '0.72rem',
+    background: 'rgba(255,255,255,0.05)',
+    fontSize: '0.7rem',
     fontWeight: 800,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -419,7 +464,7 @@ export default function TopBar({
 
   const iconButtonStyle = {
     ...baseButtonStyle,
-    width: '2.75rem',
+    width: '2.65rem',
     padding: 0,
     flexShrink: 0,
   };
@@ -447,36 +492,21 @@ export default function TopBar({
       '0 0 20px rgba(255,153,76,0.08), 0 0 20px rgba(74,178,108,0.08)',
   };
 
+  const notificationCountValue =
+    Number(notificationCount) > 0
+      ? notificationCount
+      : unreadNotificationCount;
+
   return (
-    <header
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 1000,
-        width: '100%',
-        padding:
-          '0.7rem 0.8rem calc(0.7rem + env(safe-area-inset-top))',
-        background:
-          'linear-gradient(180deg, rgba(7,10,16,0.96) 0%, rgba(7,10,16,0.84) 100%)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.24)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-      }}
-    >
+    <header style={styles.header}>
       <div
         style={{
-          width: '100%',
-          maxWidth: '980px',
-          margin: '0 auto',
-          display: 'grid',
+          ...styles.inner,
           gridTemplateColumns: profileMode
-            ? 'auto auto 1fr auto auto auto'
+            ? 'auto auto 1fr auto auto auto auto'
             : showBackButton
-              ? 'auto auto 1fr auto auto auto'
-              : 'auto auto 1fr auto auto',
-          alignItems: 'center',
-          gap: '0.45rem',
+              ? 'auto auto 1fr auto auto auto auto'
+              : 'auto auto 1fr auto auto auto',
         }}
       >
         {showBackButton ? (
@@ -499,11 +529,13 @@ export default function TopBar({
               aria-pressed={timeLimitedProfile}
               style={{
                 ...baseButtonStyle,
-                ...(timeLimitedProfile ? activeButtonStyle : {}),
+                ...(timeLimitedProfile
+                  ? activeButtonStyle
+                  : {}),
               }}
             >
               <Clock3 size={18} />
-              <span className="aarush-profile-topbar-text">
+              <span className="aarush-topbar-text">
                 Time-Limited
               </span>
             </button>
@@ -515,7 +547,9 @@ export default function TopBar({
               aria-pressed={screenRecording}
               style={{
                 ...iconButtonStyle,
-                ...(screenRecording ? activeButtonStyle : {}),
+                ...(screenRecording
+                  ? activeButtonStyle
+                  : {}),
               }}
             >
               {screenRecording ? (
@@ -526,64 +560,25 @@ export default function TopBar({
             </button>
           </>
         ) : (
-          <>
-            <button
-              type="button"
-              onClick={toggleGazeLock}
-              aria-label={`Gaze Lock ${
-                gazeLockEnabled ? 'enabled' : 'disabled'
-              }`}
-              aria-pressed={gazeLockEnabled}
-              style={{
-                ...baseButtonStyle,
-                ...(gazeLockEnabled ? activeButtonStyle : {}),
-              }}
-            >
-              <ShieldHalf size={18} />
-              <span>
-                Gaze {gazeLockEnabled ? 'ON' : 'OFF'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleNotifications}
-              aria-label={`Open notifications${
-                notificationCount > 0
-                  ? `, ${notificationCount} unread`
-                  : ''
-              }`}
-              style={iconButtonStyle}
-            >
-              <Bell size={18} />
-
-              {notificationCount > 0 ? (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '-0.2rem',
-                    right: '-0.2rem',
-                    minWidth: '1.05rem',
-                    height: '1.05rem',
-                    padding: '0 0.2rem',
-                    display: 'grid',
-                    placeItems: 'center',
-                    borderRadius: '999px',
-                    background:
-                      'linear-gradient(135deg, #ff4fd8, #7c5cff)',
-                    border: '2px solid #0c111b',
-                    color: '#fff',
-                    fontSize: '0.58rem',
-                    fontWeight: 900,
-                  }}
-                >
-                  {notificationCount > 99
-                    ? '99+'
-                    : notificationCount}
-                </span>
-              ) : null}
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={toggleGazeLock}
+            aria-label={`Gaze Lock ${
+              gazeLockEnabled ? 'enabled' : 'disabled'
+            }`}
+            aria-pressed={gazeLockEnabled}
+            style={{
+              ...baseButtonStyle,
+              ...(gazeLockEnabled
+                ? activeButtonStyle
+                : {}),
+            }}
+          >
+            <ShieldHalf size={18} />
+            <span className="aarush-topbar-text">
+              Gaze {gazeLockEnabled ? 'ON' : 'OFF'}
+            </span>
+          </button>
         )}
 
         <div
@@ -599,21 +594,44 @@ export default function TopBar({
               : undefined
           }
           onPointerUp={handleSecretAccessPointerUp}
-          style={{
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            textAlign: 'center',
-            color: '#f5f8ff',
-            fontSize: profileMode ? '0.98rem' : '1rem',
-            fontWeight: 850,
-            userSelect: 'none',
-            touchAction: 'manipulation',
-          }}
+          style={styles.title}
         >
           {title}
         </div>
+
+        <button
+          type="button"
+          onClick={handleNotifications}
+          aria-label={`Open notifications${
+            notificationCountValue > 0
+              ? `, ${notificationCountValue} unread`
+              : ''
+          }`}
+          style={iconButtonStyle}
+        >
+          <Bell size={18} />
+          <NotificationBadge
+            type="notification"
+            size="small"
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleChats}
+          aria-label={`Open chats${
+            unreadMessageCount > 0
+              ? `, ${unreadMessageCount} unread`
+              : ''
+          }`}
+          style={iconButtonStyle}
+        >
+          <MessageCircle size={18} />
+          <NotificationBadge
+            type="message"
+            size="small"
+          />
+        </button>
 
         {profileMode ? (
           <button
@@ -623,7 +641,9 @@ export default function TopBar({
             aria-pressed={screenshotShield}
             style={{
               ...iconButtonStyle,
-              ...(screenshotShield ? activeButtonStyle : {}),
+              ...(screenshotShield
+                ? activeButtonStyle
+                : {}),
             }}
           >
             <Camera size={18} />
@@ -652,9 +672,7 @@ export default function TopBar({
           >
             <UserRound size={18} />
           </button>
-        ) : null}
-
-        {profileMode ? (
+        ) : (
           <>
             <button
               type="button"
@@ -686,7 +704,7 @@ export default function TopBar({
               <Menu size={18} />
             </button>
           </>
-        ) : null}
+        )}
       </div>
 
       {accountPreviewOpen ? (
@@ -702,8 +720,8 @@ export default function TopBar({
               </strong>
 
               <span style={styles.popupSubtitle}>
-                {PREVIEW_ACCOUNTS.length} Aarush accounts on this
-                device
+                {PREVIEW_ACCOUNTS.length} Aarush accounts on
+                this device
               </span>
             </div>
 
@@ -780,7 +798,6 @@ export default function TopBar({
                 <ChevronRight
                   size={15}
                   color="#8290ad"
-                  style={{ flexShrink: 0 }}
                 />
               </button>
             ))}
@@ -841,8 +858,14 @@ export default function TopBar({
           outline-offset: 2px;
         }
 
-        @media (max-width: 560px) {
-          .aarush-profile-topbar-text {
+        @media (max-width: 620px) {
+          .aarush-topbar-text {
+            display: none;
+          }
+        }
+
+        @media (max-width: 460px) {
+          .aarush-topbar-text {
             display: none;
           }
         }
@@ -858,6 +881,43 @@ export default function TopBar({
 }
 
 const styles = {
+  header: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 1000,
+    width: '100%',
+    padding:
+      '0.7rem 0.8rem calc(0.7rem + env(safe-area-inset-top))',
+    background:
+      'linear-gradient(180deg, rgba(7,10,16,0.96) 0%, rgba(7,10,16,0.84) 100%)',
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.24)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+  },
+
+  inner: {
+    width: '100%',
+    maxWidth: '1120px',
+    margin: '0 auto',
+    display: 'grid',
+    alignItems: 'center',
+    gap: '0.35rem',
+  },
+
+  title: {
+    minWidth: 0,
+    overflow: 'hidden',
+    color: '#f5f8ff',
+    fontSize: '0.98rem',
+    fontWeight: 850,
+    textAlign: 'center',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    userSelect: 'none',
+    touchAction: 'manipulation',
+  },
+
   accountPopup: {
     position: 'absolute',
     top: 'calc(100% + 0.65rem)',
@@ -901,10 +961,10 @@ const styles = {
     height: '2rem',
     display: 'grid',
     placeItems: 'center',
-    borderRadius: '999px',
     border: '1px solid rgba(255,255,255,0.09)',
-    background: 'rgba(255,255,255,0.06)',
+    borderRadius: '999px',
     color: '#dce5f8',
+    background: 'rgba(255,255,255,0.06)',
     cursor: 'pointer',
   },
 
@@ -921,10 +981,10 @@ const styles = {
     alignItems: 'center',
     gap: '0.65rem',
     padding: '0.65rem',
-    borderRadius: '1rem',
     border: '1px solid rgba(255,255,255,0.07)',
-    background: 'rgba(255,255,255,0.04)',
+    borderRadius: '1rem',
     color: '#f4f7ff',
+    background: 'rgba(255,255,255,0.04)',
     textAlign: 'left',
     cursor: 'pointer',
   },
@@ -938,9 +998,9 @@ const styles = {
     width: '2.6rem',
     height: '2.6rem',
     objectFit: 'cover',
-    borderRadius: '999px',
-    border: '2px solid rgba(255,255,255,0.12)',
     flexShrink: 0,
+    border: '2px solid rgba(255,255,255,0.12)',
+    borderRadius: '999px',
   },
 
   currentAccountAvatar: {
@@ -1003,8 +1063,9 @@ const styles = {
     gap: '0.35rem',
     border: 0,
     borderRadius: '999px',
-    background: 'linear-gradient(135deg, #7c5cff, #4dd7ff)',
     color: '#fff',
+    background:
+      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
     fontSize: '0.7rem',
     fontWeight: 850,
     cursor: 'pointer',
@@ -1018,8 +1079,8 @@ const styles = {
     gap: '0.35rem',
     border: '1px solid rgba(255,255,255,0.09)',
     borderRadius: '999px',
-    background: 'rgba(255,255,255,0.05)',
     color: '#dce5f8',
+    background: 'rgba(255,255,255,0.05)',
     fontSize: '0.7rem',
     fontWeight: 800,
     cursor: 'pointer',
@@ -1029,8 +1090,8 @@ const styles = {
     minHeight: '2.15rem',
     border: 0,
     borderRadius: '999px',
-    background: 'transparent',
     color: '#96a3bf',
+    background: 'transparent',
     fontSize: '0.7rem',
     fontWeight: 750,
     cursor: 'pointer',

@@ -1,1583 +1,917 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import {
   AlertTriangle,
-  Archive,
-  ArrowDownToLine,
-  Ban,
-  Bell,
   Check,
-  CheckCircle2,
+  ChevronLeft,
   ChevronRight,
-  Clock3,
-  Eye,
   Fingerprint,
-  Globe2,
-  Laptop,
+  Globe,
+  KeyRound,
   Lock,
-  LockKeyhole,
   LogOut,
-  Monitor,
-  MoreHorizontal,
-  Network,
-  Phone,
   RefreshCw,
   ScanLine,
-  Server,
-  Settings,
   Shield,
   ShieldAlert,
-  ShieldCheck,
   Smartphone,
-  UserCheck,
-  Users,
-  Video,
-  Wifi,
-  X,
+  Trash2,
+  Unlock,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
 import TopBar from '../components/TopBar';
 import BottomNav from '../components/BottomNav';
+import useSecurityStatus from '../hooks/useSecurityStatus';
+import {
+  lockSession,
+  logoutAllDevices,
+  revokeCurrentDevice,
+  runSecurityScan,
+} from '../utils/securityEngine';
+import {
+  trustDevice,
+  untrustDevice,
+} from '../utils/deviceTrustEngine';
 
-const PRIVACY_KEYS = {
-  screenshotShield: 'aarush_screenshot_shield_enabled',
-  screenRecording: 'aarush_screen_recording_enabled',
-  shoulderSurf: 'aarush_shoulder_surf_enabled',
-  gazeLock: 'aarush_gaze_lock_enabled',
-  oneTapLock: 'aarush_one_tap_lock_enabled',
-  emergencyPrivacy: 'aarush_emergency_privacy_enabled',
-  appLock: 'aarush_app_lock_enabled',
-  decoyVault: 'aarush_decoy_vault_enabled',
-};
+function formatDate(value) {
+  if (!value) return 'Unknown';
 
-const INITIAL_DEVICES = [
-  {
-    id: 'device-current',
-    name: 'This Android device',
-    os: 'Android',
-    browser: 'Chrome Mobile',
-    location: 'Current location',
-    loginTime: 'Today, 08:12 AM',
-    lastActivity: 'Active now',
-    current: true,
-    trusted: true,
-  },
-  {
-    id: 'device-laptop',
-    name: 'Windows laptop',
-    os: 'Windows 11',
-    browser: 'Chrome',
-    location: 'New Delhi, IN',
-    loginTime: 'Yesterday, 10:42 PM',
-    lastActivity: '18 minutes ago',
-    current: false,
-    trusted: true,
-  },
-  {
-    id: 'device-tablet',
-    name: 'Personal tablet',
-    os: 'Android',
-    browser: 'Aarush Web',
-    location: 'Mumbai, IN',
-    loginTime: 'May 18, 2026',
-    lastActivity: 'May 18, 2026',
-    current: false,
-    trusted: false,
-  },
-];
+  const date = new Date(value);
 
-const INITIAL_SESSIONS = [
-  {
-    id: 'session-1',
-    device: 'This Android device',
-    browser: 'Chrome Mobile',
-    ip: '103.•••.••.42',
-    time: '08:12 AM',
-    date: 'Today',
-    status: 'Current',
-  },
-  {
-    id: 'session-2',
-    device: 'Windows laptop',
-    browser: 'Chrome 125',
-    ip: '117.•••.••.81',
-    time: '10:42 PM',
-    date: 'Yesterday',
-    status: 'Active',
-  },
-  {
-    id: 'session-3',
-    device: 'Personal tablet',
-    browser: 'Aarush Web',
-    ip: '49.•••.••.19',
-    time: '04:18 PM',
-    date: 'May 18, 2026',
-    status: 'Expired',
-  },
-];
-
-const SECURITY_ALERTS = [
-  {
-    id: 'alert-1',
-    title: 'New login detected',
-    severity: 'yellow',
-    status: 'Reviewed',
-    time: '08:12 AM',
-    date: 'Today',
-  },
-  {
-    id: 'alert-2',
-    title: 'Trusted device added',
-    severity: 'green',
-    status: 'Verified',
-    time: '10:44 PM',
-    date: 'Yesterday',
-  },
-  {
-    id: 'alert-3',
-    title: 'Screenshot detected',
-    severity: 'red',
-    status: 'Protected',
-    time: '06:20 PM',
-    date: 'May 18, 2026',
-  },
-  {
-    id: 'alert-4',
-    title: 'Gaze Lock enabled',
-    severity: 'green',
-    status: 'Active',
-    time: '04:32 PM',
-    date: 'May 17, 2026',
-  },
-];
-
-const SECURITY_SYSTEMS = [
-  ['Authentication Engine', 'Active'],
-  ['Session Monitor', 'Active'],
-  ['Device Trust Engine', 'Active'],
-  ['Screenshot Detection', 'Active'],
-  ['Recording Detection', 'Active'],
-  ['Privacy Sync', 'Syncing'],
-  ['Realtime Security Monitor', 'Active'],
-  ['Notification Sync', 'Active'],
-  ['Encryption Layer', 'Active'],
-  ['Recovery System', 'Active'],
-];
-
-function readBoolean(key, fallback = false) {
-  const value = localStorage.getItem(key);
-
-  if (value === null) {
-    return fallback;
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown';
   }
 
-  return value === 'true';
+  return date.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
-function severityColor(severity) {
-  if (severity === 'red') {
-    return '#ff789d';
-  }
-
-  if (severity === 'yellow') {
-    return '#ffd27d';
-  }
-
-  return '#82e9c1';
+function getScoreColor(score) {
+  if (score >= 75) return '#55e6a5';
+  if (score >= 55) return '#ffd166';
+  if (score >= 30) return '#ffad66';
+  return '#ff6f91';
 }
 
-function StatusDot({ severity = 'green' }) {
+function DeviceRow({ device, current, onTrust }) {
   return (
-    <span
-      style={{
-        ...styles.statusDot,
-        background: severityColor(severity),
-        boxShadow: `0 0 10px ${severityColor(severity)}`,
-      }}
-    />
-  );
-}
-
-function Section({ title, icon: Icon, children, action }) {
-  return (
-    <section style={styles.card}>
-      <div style={styles.sectionHeader}>
-        <div style={styles.sectionTitleWrap}>
-          <span style={styles.sectionIcon}>
-            <Icon size={17} />
-          </span>
-
-          <h2 style={styles.sectionTitle}>{title}</h2>
-        </div>
-
-        {action || null}
+    <article className="security-device-row">
+      <div className="security-device-icon">
+        <Smartphone size={20} />
       </div>
 
-      {children}
-    </section>
+      <div className="security-device-copy">
+        <strong>
+          {device.browser || 'Unknown browser'}
+          {current ? ' · This device' : ''}
+        </strong>
+
+        <span>
+          {device.operating_system || 'Unknown OS'}
+          {' · '}
+          {device.timezone || 'Unknown timezone'}
+        </span>
+
+        <small>
+          Last active {formatDate(
+            device.last_activity_at ||
+              device.updated_at
+          )}
+        </small>
+      </div>
+
+      <button
+        type="button"
+        className={
+          device.is_trusted
+            ? 'security-device-action is-trusted'
+            : 'security-device-action'
+        }
+        onClick={() =>
+          onTrust(device)
+        }
+      >
+        {device.is_trusted ? (
+          <>
+            <Check size={14} />
+            Trusted
+          </>
+        ) : (
+          'Trust'
+        )}
+      </button>
+    </article>
   );
 }
 
-function ToggleRow({
-  icon: Icon,
+function SecurityAction({
+  icon,
   title,
   description,
-  value,
-  onChange,
+  onClick,
+  danger = false,
 }) {
   return (
-    <label style={styles.toggleRow}>
-      <span style={styles.smallIcon}>
-        <Icon size={17} />
-      </span>
+    <button
+      type="button"
+      className={
+        danger
+          ? 'security-action-row is-danger'
+          : 'security-action-row'
+      }
+      onClick={onClick}
+    >
+      <div className="security-action-icon">
+        {icon}
+      </div>
 
-      <span style={styles.rowCopy}>
+      <span>
         <strong>{title}</strong>
         <small>{description}</small>
       </span>
 
-      <input
-        type="checkbox"
-        checked={value}
-        onChange={(event) => onChange(event.target.checked)}
-        style={styles.checkbox}
-      />
-    </label>
-  );
-}
-
-function OverviewCard({ icon: Icon, label, value, tone = 'blue' }) {
-  return (
-    <div style={styles.overviewCard}>
-      <span
-        style={{
-          ...styles.overviewIcon,
-          color:
-            tone === 'green'
-              ? '#82e9c1'
-              : tone === 'yellow'
-                ? '#ffd27d'
-                : '#9deeff',
-        }}
-      >
-        <Icon size={18} />
-      </span>
-
-      <span style={styles.overviewValue}>{value}</span>
-      <span style={styles.overviewLabel}>{label}</span>
-    </div>
+      <ChevronRight size={18} />
+    </button>
   );
 }
 
 export default function SecurityCenter() {
   const navigate = useNavigate();
+  const {
+    security,
+    loading,
+    error,
+    refresh,
+  } = useSecurityStatus();
 
-  const [devices, setDevices] = useState(INITIAL_DEVICES);
-  const [sessions, setSessions] = useState(INITIAL_SESSIONS);
-  const [toast, setToast] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [actionError, setActionError] =
+    useState('');
 
-  const [twoFactor, setTwoFactor] = useState(() =>
-    readBoolean('aarush_two_factor_enabled', true)
-  );
-  const [backupCodes, setBackupCodes] = useState(() =>
-    readBoolean('aarush_backup_codes_enabled', true)
-  );
-  const [recoveryEmail, setRecoveryEmail] = useState(() =>
-    readBoolean('aarush_recovery_email_enabled', true)
-  );
-  const [recoveryPhone, setRecoveryPhone] = useState(() =>
-    readBoolean('aarush_recovery_phone_enabled')
-  );
-  const [biometric, setBiometric] = useState(() =>
-    readBoolean('aarush_biometric_enabled')
-  );
-  const [faceUnlock, setFaceUnlock] = useState(() =>
-    readBoolean('aarush_face_unlock_enabled')
-  );
-  const [fingerprint, setFingerprint] = useState(() =>
-    readBoolean('aarush_fingerprint_enabled')
-  );
-  const [pinLock, setPinLock] = useState(() =>
-    readBoolean('aarush_pin_lock_enabled', true)
-  );
-
-  const [privacy, setPrivacy] = useState({
-    screenshotShield: readBoolean(
-      PRIVACY_KEYS.screenshotShield,
-      true
-    ),
-    screenRecording: readBoolean(
-      PRIVACY_KEYS.screenRecording,
-      true
-    ),
-    shoulderSurf: readBoolean(PRIVACY_KEYS.shoulderSurf),
-    gazeLock: readBoolean(PRIVACY_KEYS.gazeLock, true),
-    oneTapLock: readBoolean(PRIVACY_KEYS.oneTapLock),
-    emergencyPrivacy: readBoolean(
-      PRIVACY_KEYS.emergencyPrivacy
-    ),
-    appLock: readBoolean(PRIVACY_KEYS.appLock),
-    decoyVault: readBoolean(PRIVACY_KEYS.decoyVault),
-  });
-
-  const showToast = (value) => {
-    setToast(value);
-    window.setTimeout(() => setToast(''), 2600);
+  const runAction = async (
+    action,
+    successMessage
+  ) => {
+    try {
+      setBusy(true);
+      setActionError('');
+      await action();
+      setNotice(successMessage);
+      await refresh();
+    } catch (actionException) {
+      setActionError(
+        actionException?.message ||
+          'Unable to complete this security action.'
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const updateBoolean = (key, setter, value) => {
-    setter(value);
-    localStorage.setItem(key, String(value));
-  };
-
-  const updatePrivacy = (key, value) => {
-    setPrivacy((current) => ({
-      ...current,
-      [key]: value,
-    }));
-
-    localStorage.setItem(PRIVACY_KEYS[key], String(value));
-  };
-
-  const revokeSession = (id) => {
-    setSessions((current) =>
-      current.filter((session) => session.id !== id)
+  const handleTrust = async (device) => {
+    await runAction(
+      () =>
+        device.is_trusted
+          ? untrustDevice(device.device_id)
+          : trustDevice(device.device_id),
+      device.is_trusted
+        ? 'Device trust removed.'
+        : 'Device marked as trusted.'
     );
-    showToast('Session revoked.');
   };
 
-  const logoutAllOtherDevices = () => {
-    setSessions((current) =>
-      current.filter((session) => session.status === 'Current')
+  const handleLogoutAll = () => {
+    const confirmed = window.confirm(
+      'Log out all other devices?'
     );
 
-    setDevices((current) =>
-      current.filter((device) => device.current)
-    );
+    if (!confirmed) return;
 
-    showToast('All other devices have been logged out.');
+    runAction(
+      logoutAllDevices,
+      'All other devices were logged out.'
+    );
   };
 
-  const removeDeviceTrust = (id) => {
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === id
-          ? { ...device, trusted: false }
-          : device
-      )
+  const handleRevokeCurrent = () => {
+    const confirmed = window.confirm(
+      'Revoke the current device? You may need to sign in again.'
     );
 
-    showToast('Device trust removed.');
-  };
+    if (!confirmed) return;
 
-  const trustDevice = (id) => {
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === id
-          ? { ...device, trusted: true }
-          : device
-      )
+    runAction(
+      revokeCurrentDevice,
+      'Current device revoked.'
     );
-
-    showToast('Device trusted successfully.');
   };
 
-  const activeDevices = devices.filter(
-    (device) => device.current || device.lastActivity !== 'Expired'
-  ).length;
+  const handleLock = () => {
+    runAction(
+      lockSession,
+      'Session locked.'
+    );
+  };
 
-  const trustedDevices = devices.filter(
-    (device) => device.trusted
-  ).length;
+  const handleScan = () => {
+    runAction(
+      async () => {
+        await runSecurityScan();
+      },
+      'Security scan completed.'
+    );
+  };
 
-  const activeSessions = sessions.filter(
-    (session) => session.status !== 'Expired'
-  ).length;
+  if (loading) {
+    return (
+      <div className="social-page security-page">
+        <TopBar />
 
-  const securityScore = useMemo(() => {
-    let score = 78;
+        <main className="security-content">
+          <div className="security-loading-header" />
+          <div className="security-loading-card" />
+          <div className="security-loading-card" />
+        </main>
 
-    if (twoFactor) score += 5;
-    if (backupCodes) score += 3;
-    if (biometric || fingerprint || faceUnlock) score += 3;
-    if (privacy.gazeLock) score += 2;
-    if (privacy.screenshotShield) score += 2;
-    if (privacy.screenRecording) score += 2;
-    if (trustedDevices > 0) score += 1;
+        <BottomNav />
+        <style>{styles}</style>
+      </div>
+    );
+  }
 
-    return Math.min(score, 100);
-  }, [
-    backupCodes,
-    biometric,
-    faceUnlock,
-    fingerprint,
-    privacy.gazeLock,
-    privacy.screenshotShield,
-    privacy.screenRecording,
-    trustedDevices,
-    twoFactor,
-  ]);
+  const score = security?.score || 0;
+  const scoreColor = getScoreColor(score);
 
   return (
-    <div style={styles.page}>
-      <TopBar
-        pageTitle="Security Center"
-        showBackButton
-        initialGazeLock={privacy.gazeLock}
-        onGazeLockChange={(value) =>
-          updatePrivacy('gazeLock', value)
-        }
-      />
+    <div className="social-page security-page">
+      <TopBar />
 
-      <main style={styles.content}>
-        <section style={styles.heroCard}>
-          <div style={styles.heroShield}>
-            <ShieldCheck size={30} />
-          </div>
-
-          <div style={styles.heroCopy}>
-            <h1 style={styles.title}>Security Center</h1>
-            <p style={styles.subtitle}>
-              Manage account protection, devices, authentication,
-              and privacy security.
-            </p>
-          </div>
-
-          <span style={styles.excellentBadge}>Excellent</span>
-        </section>
-
-        <section style={styles.scoreCard}>
-          <div
-            style={{
-              ...styles.scoreCircle,
-              background: `conic-gradient(#4dd7ff ${securityScore}%, rgba(255,255,255,0.08) ${securityScore}% 100%)`,
-            }}
+      <main className="security-content">
+        <header className="security-header">
+          <button
+            type="button"
+            className="security-icon-button"
+            onClick={() => navigate(-1)}
+            aria-label="Go back"
           >
-            <div style={styles.scoreInner}>
-              <strong>{securityScore}</strong>
-              <span>/ 100</span>
-            </div>
-          </div>
+            <ChevronLeft size={21} />
+          </button>
 
-          <div style={styles.scoreCopy}>
-            <h2 style={styles.scoreTitle}>Strong protection</h2>
-            <p style={styles.scoreText}>
-              Your account has strong security coverage. Enable
-              additional recovery and biometric options for extra
-              protection.
+          <div>
+            <p className="security-eyebrow">
+              Protection
             </p>
-          </div>
-        </section>
-
-        <section style={styles.overviewGrid}>
-          <OverviewCard
-            icon={Smartphone}
-            label="Active Devices"
-            value={activeDevices}
-            tone="blue"
-          />
-          <OverviewCard
-            icon={Globe2}
-            label="Login Sessions"
-            value={activeSessions}
-            tone="blue"
-          />
-          <OverviewCard
-            icon={UserCheck}
-            label="Trusted Devices"
-            value={trustedDevices}
-            tone="green"
-          />
-          <OverviewCard
-            icon={ShieldAlert}
-            label="Security Alerts"
-            value={SECURITY_ALERTS.length}
-            tone="yellow"
-          />
-          <OverviewCard
-            icon={Clock3}
-            label="Password Change"
-            value="42d"
-            tone="green"
-          />
-          <OverviewCard
-            icon={LockKeyhole}
-            label="Two-Factor Auth"
-            value={twoFactor ? 'ON' : 'OFF'}
-            tone={twoFactor ? 'green' : 'yellow'}
-          />
-        </section>
-
-        <Section title="Authentication" icon={LockKeyhole}>
-          <div style={styles.settingsList}>
-            <ActionSetting
-              icon={Lock}
-              title="Change Password"
-              description="Update your Aarush account password."
-              onClick={() =>
-                showToast('Password settings opened.')
-              }
-            />
-
-            <ToggleRow
-              icon={ShieldCheck}
-              title="Two-Factor Authentication"
-              description="Require an additional verification step."
-              value={twoFactor}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_two_factor_enabled',
-                  setTwoFactor,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={Archive}
-              title="Backup Codes"
-              description="Keep recovery codes available for emergencies."
-              value={backupCodes}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_backup_codes_enabled',
-                  setBackupCodes,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={MailIcon}
-              title="Recovery Email"
-              description="Use a verified recovery email."
-              value={recoveryEmail}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_recovery_email_enabled',
-                  setRecoveryEmail,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={Phone}
-              title="Recovery Phone"
-              description="Use a verified phone number for recovery."
-              value={recoveryPhone}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_recovery_phone_enabled',
-                  setRecoveryPhone,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={Fingerprint}
-              title="Biometric Authentication"
-              description="Use supported biometrics to verify identity."
-              value={biometric}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_biometric_enabled',
-                  setBiometric,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={Eye}
-              title="Face Unlock"
-              description="Use face verification where supported."
-              value={faceUnlock}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_face_unlock_enabled',
-                  setFaceUnlock,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={Fingerprint}
-              title="Fingerprint Unlock"
-              description="Use fingerprint verification where supported."
-              value={fingerprint}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_fingerprint_enabled',
-                  setFingerprint,
-                  value
-                )
-              }
-            />
-
-            <ToggleRow
-              icon={LockKeyhole}
-              title="PIN Lock"
-              description="Require a PIN before protected access."
-              value={pinLock}
-              onChange={(value) =>
-                updateBoolean(
-                  'aarush_pin_lock_enabled',
-                  setPinLock,
-                  value
-                )
-              }
-            />
-          </div>
-        </Section>
-
-        <Section title="Active Devices" icon={Smartphone}>
-          <div style={styles.deviceList}>
-            {devices.map((device) => (
-              <div key={device.id} style={styles.deviceCard}>
-                <span style={styles.deviceIcon}>
-                  {device.os === 'Android' ? (
-                    <Smartphone size={19} />
-                  ) : (
-                    <Laptop size={19} />
-                  )}
-                </span>
-
-                <div style={styles.deviceCopy}>
-                  <div style={styles.deviceTitleRow}>
-                    <strong>{device.name}</strong>
-
-                    {device.current ? (
-                      <span style={styles.currentBadge}>
-                        Current device
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <span style={styles.deviceMeta}>
-                    {device.os} · {device.browser}
-                  </span>
-                  <span style={styles.deviceMeta}>
-                    {device.location}
-                  </span>
-                  <span style={styles.deviceMeta}>
-                    Login: {device.loginTime} · Last activity:{' '}
-                    {device.lastActivity}
-                  </span>
-
-                  <div style={styles.inlineActions}>
-                    {!device.current && !device.trusted ? (
-                      <button
-                        type="button"
-                        onClick={() => trustDevice(device.id)}
-                        style={styles.smallAction}
-                      >
-                        <UserCheck size={13} />
-                        Trust Device
-                      </button>
-                    ) : null}
-
-                    {!device.current && device.trusted ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeDeviceTrust(device.id)
-                        }
-                        style={styles.smallAction}
-                      >
-                        Remove Trust
-                      </button>
-                    ) : null}
-
-                    {!device.current ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDevices((current) =>
-                            current.filter(
-                              (item) => item.id !== device.id
-                            )
-                          );
-                          showToast('Device logged out.');
-                        }}
-                        style={styles.smallDangerAction}
-                      >
-                        <LogOut size={13} />
-                        Logout Device
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <MoreHorizontal
-                  size={17}
-                  color="#8290ad"
-                  style={{ flexShrink: 0 }}
-                />
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="Login Sessions" icon={Globe2}>
-          <div style={styles.timeline}>
-            {sessions.map((session) => (
-              <div key={session.id} style={styles.sessionItem}>
-                <span
-                  style={{
-                    ...styles.timelineDot,
-                    background:
-                      session.status === 'Current'
-                        ? '#82e9c1'
-                        : session.status === 'Active'
-                          ? '#ffd27d'
-                          : '#8290ad',
-                  }}
-                />
-
-                <div style={styles.sessionCopy}>
-                  <strong>{session.device}</strong>
-                  <span style={styles.deviceMeta}>
-                    {session.browser} · IP {session.ip}
-                  </span>
-                  <span style={styles.deviceMeta}>
-                    {session.time} · {session.date}
-                  </span>
-                  <span style={styles.sessionStatus}>
-                    {session.status}
-                  </span>
-                </div>
-
-                {session.status !== 'Current' ? (
-                  <button
-                    type="button"
-                    onClick={() => revokeSession(session.id)}
-                    style={styles.smallDangerAction}
-                  >
-                    Revoke
-                  </button>
-                ) : null}
-              </div>
-            ))}
+            <h1>Security Center</h1>
           </div>
 
           <button
             type="button"
-            onClick={logoutAllOtherDevices}
-            style={styles.fullAction}
+            className="security-icon-button"
+            onClick={refresh}
+            disabled={busy}
+            aria-label="Refresh security"
           >
-            <LogOut size={16} />
-            Logout All Other Devices
+            <RefreshCw
+              size={18}
+              className={
+                busy ? 'security-spin' : undefined
+              }
+            />
           </button>
-        </Section>
+        </header>
 
-        <Section title="Privacy Protection" icon={Shield}>
-          <div style={styles.settingsList}>
-            <ToggleRow
-              icon={ScanLine}
-              title="Screenshot Shield"
-              description="Protect sensitive screens from screenshots."
-              value={privacy.screenshotShield}
-              onChange={(value) =>
-                updatePrivacy('screenshotShield', value)
-              }
-            />
-
-            <ToggleRow
-              icon={Video}
-              title="Screen Recording Protection"
-              description="Protect sensitive content during recording."
-              value={privacy.screenRecording}
-              onChange={(value) =>
-                updatePrivacy('screenRecording', value)
-              }
-            />
-
-            <ToggleRow
-              icon={Eye}
-              title="Shoulder Surf Protection"
-              description="Blur private content when someone is nearby."
-              value={privacy.shoulderSurf}
-              onChange={(value) =>
-                updatePrivacy('shoulderSurf', value)
-              }
-            />
-
-            <ToggleRow
-              icon={ShieldCheck}
-              title="Gaze Lock"
-              description="Protect your screen when you look away."
-              value={privacy.gazeLock}
-              onChange={(value) =>
-                updatePrivacy('gazeLock', value)
-              }
-            />
-
-            <ToggleRow
-              icon={LockKeyhole}
-              title="One Tap Lock"
-              description="Lock Aarush immediately."
-              value={privacy.oneTapLock}
-              onChange={(value) =>
-                updatePrivacy('oneTapLock', value)
-              }
-            />
-
-            <ToggleRow
-              icon={ShieldAlert}
-              title="Emergency Privacy"
-              description="Enable fast emergency protection."
-              value={privacy.emergencyPrivacy}
-              onChange={(value) =>
-                updatePrivacy('emergencyPrivacy', value)
-              }
-            />
-
-            <ToggleRow
-              icon={Lock}
-              title="App Lock"
-              description="Require verification before protected access."
-              value={privacy.appLock}
-              onChange={(value) =>
-                updatePrivacy('appLock', value)
-              }
-            />
-
-            <ToggleRow
-              icon={Archive}
-              title="Decoy Vault"
-              description="Protect hidden secure storage."
-              value={privacy.decoyVault}
-              onChange={(value) =>
-                updatePrivacy('decoyVault', value)
-              }
-            />
+        {error || actionError ? (
+          <div className="security-error" role="alert">
+            <AlertTriangle size={16} />
+            <span>{error || actionError}</span>
           </div>
-        </Section>
+        ) : null}
 
-        <Section title="Security Alerts" icon={Bell}>
-          <div style={styles.alertList}>
-            {SECURITY_ALERTS.map((alert) => (
-              <div key={alert.id} style={styles.alertRow}>
-                <StatusDot severity={alert.severity} />
+        {notice ? (
+          <div className="security-notice" role="status">
+            <Check size={16} />
+            <span>{notice}</span>
+          </div>
+        ) : null}
 
-                <div style={styles.alertCopy}>
-                  <strong>{alert.title}</strong>
-                  <span style={styles.deviceMeta}>
-                    {alert.status} · {alert.time} · {alert.date}
-                  </span>
-                </div>
+        <section className="security-score-card">
+          <div className="security-score-ring">
+            <div
+              style={{
+                '--score': `${score * 3.6}deg`,
+                '--score-color': scoreColor,
+              }}
+            >
+              <strong>{score}</strong>
+              <span>/100</span>
+            </div>
+          </div>
+
+          <div className="security-score-copy">
+            <p>Security score</p>
+            <h2>{security?.label}</h2>
+            <span>
+              {security?.suspicious
+                ? 'Review recent security events.'
+                : 'Your account has no urgent warnings.'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="security-scan-button"
+            onClick={handleScan}
+            disabled={busy}
+          >
+            <ScanLine size={16} />
+            Scan
+          </button>
+        </section>
+
+        <section className="security-section">
+          <div className="security-section-heading">
+            <Smartphone size={17} />
+            <div>
+              <h2>Trusted devices</h2>
+              <p>
+                Review every device connected to your account.
+              </p>
+            </div>
+          </div>
+
+          <div className="security-card">
+            {(security?.devices || []).length === 0 ? (
+              <div className="security-empty">
+                <Smartphone size={24} />
+                <span>No devices registered yet.</span>
               </div>
-            ))}
+            ) : (
+              security.devices.map((device) => (
+                <DeviceRow
+                  device={device}
+                  current={
+                    device.device_id ===
+                    security?.device?.device_id
+                  }
+                  onTrust={handleTrust}
+                  key={
+                    device.device_id ||
+                    device.id
+                  }
+                />
+              ))
+            )}
           </div>
-        </Section>
+        </section>
 
-        <Section title="Trusted Devices" icon={UserCheck}>
-          <div style={styles.deviceList}>
-            {devices
-              .filter((device) => device.trusted)
-              .map((device) => (
-                <div key={device.id} style={styles.trustedRow}>
-                  <UserCheck size={17} color="#82e9c1" />
+        <section className="security-section">
+          <div className="security-section-heading">
+            <ShieldAlert size={17} />
+            <div>
+              <h2>Recent security events</h2>
+              <p>
+                Monitor activity that may need attention.
+              </p>
+            </div>
+          </div>
 
-                  <div style={styles.deviceCopy}>
-                    <strong>{device.name}</strong>
-                    <span style={styles.deviceMeta}>
-                      {device.os} · {device.location}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      removeDeviceTrust(device.id)
-                    }
-                    style={styles.smallDangerAction}
+          <div className="security-card">
+            {(security?.events || []).length === 0 ? (
+              <div className="security-empty">
+                <Check size={24} />
+                <span>No recent security events.</span>
+              </div>
+            ) : (
+              security.events
+                .slice(0, 8)
+                .map((event) => (
+                  <article
+                    className="security-event-row"
+                    key={event.id}
                   >
-                    Remove Trust
-                  </button>
-                </div>
-              ))}
+                    <div
+                      className={
+                        event.severity === 'critical'
+                          ? 'security-event-icon critical'
+                          : event.severity === 'warning'
+                            ? 'security-event-icon warning'
+                            : 'security-event-icon'
+                      }
+                    >
+                      {event.severity ===
+                      'critical' ? (
+                        <ShieldAlert size={17} />
+                      ) : (
+                        <Shield size={17} />
+                      )}
+                    </div>
+
+                    <div>
+                      <strong>
+                        {event.title ||
+                          event.event_type}
+                      </strong>
+                      <span>
+                        {event.description ||
+                          'Security activity recorded.'}
+                      </span>
+                      <small>
+                        {formatDate(event.created_at)}
+                      </small>
+                    </div>
+                  </article>
+                ))
+            )}
           </div>
-        </Section>
+        </section>
 
-        <Section title="Security Systems" icon={Server}>
-          <div style={styles.systemGrid}>
-            {SECURITY_SYSTEMS.map(([name, status]) => (
-              <div key={name} style={styles.systemRow}>
-                <span style={styles.systemStatus}>
-                  <CheckCircle2 size={14} />
-                </span>
-
-                <span style={styles.systemName}>{name}</span>
-
-                <span
-                  style={{
-                    ...styles.systemLabel,
-                    color:
-                      status === 'Syncing'
-                        ? '#ffd27d'
-                        : '#82e9c1',
-                  }}
-                >
-                  {status}
-                </span>
-              </div>
-            ))}
+        <section className="security-section">
+          <div className="security-section-heading">
+            <Lock size={17} />
+            <div>
+              <h2>Account protection</h2>
+              <p>
+                Strengthen your account and session security.
+              </p>
+            </div>
           </div>
-        </Section>
 
-        <Section title="Emergency Security Actions" icon={ShieldAlert}>
-          <div style={styles.actionGrid}>
-            <button
-              type="button"
-              onClick={logoutAllOtherDevices}
-              style={styles.emergencyButton}
-            >
-              <LogOut size={17} />
-              Logout All Devices
-            </button>
-
-            <button
-              type="button"
-              onClick={() => showToast('Account lock requested.')}
-              style={styles.emergencyButton}
-            >
-              <Ban size={17} />
-              Lock Account
-            </button>
-
-            <button
-              type="button"
+          <div className="security-card">
+            <SecurityAction
+              icon={<KeyRound size={18} />}
+              title="Login protection"
+              description="Manage password and verification safeguards."
               onClick={() =>
-                navigate('/emergency-privacy')
+                navigate('/security-settings')
               }
-              style={styles.emergencyButton}
-            >
-              <ShieldAlert size={17} />
-              Open Emergency Privacy
-            </button>
+            />
 
-            <button
-              type="button"
-              onClick={() =>
-                navigate('/privacy-dashboard')
-              }
-              style={styles.emergencyButton}
-            >
-              <ShieldCheck size={17} />
-              Open Privacy Dashboard
-            </button>
-
-            <button
-              type="button"
+            <SecurityAction
+              icon={<Fingerprint size={18} />}
+              title="Biometric and app lock"
+              description="Protect Aarush when the app is not in use."
               onClick={() =>
                 navigate('/app-lock-settings')
               }
-              style={styles.emergencyButton}
-            >
-              <LockKeyhole size={17} />
-              Open App Lock Settings
-            </button>
+            />
 
-            <button
-              type="button"
+            <SecurityAction
+              icon={<Globe size={18} />}
+              title="Privacy protection"
+              description="Review profile and social privacy controls."
               onClick={() =>
-                showToast('Security report download prepared.')
+                navigate('/privacy-dashboard')
               }
-              style={styles.emergencyButton}
-            >
-              <ArrowDownToLine size={17} />
-              Download Security Report
-            </button>
+            />
           </div>
-        </Section>
+        </section>
+
+        <section className="security-section">
+          <div className="security-section-heading">
+            <ShieldAlert size={17} />
+            <div>
+              <h2>Emergency actions</h2>
+              <p>
+                Use these actions if you suspect account misuse.
+              </p>
+            </div>
+          </div>
+
+          <div className="security-card">
+            <SecurityAction
+              icon={<LogOut size={18} />}
+              title="Logout all other devices"
+              description="Immediately revoke every other active device."
+              onClick={handleLogoutAll}
+              danger
+            />
+
+            <SecurityAction
+              icon={<Trash2 size={18} />}
+              title="Revoke current device"
+              description="Remove this device from your trusted devices."
+              onClick={handleRevokeCurrent}
+              danger
+            />
+
+            <SecurityAction
+              icon={<Lock size={18} />}
+              title="Lock session"
+              description="Temporarily lock this Aarush session."
+              onClick={handleLock}
+            />
+          </div>
+        </section>
+
+        <p className="security-footer">
+          Zero-trust protection treats every sensitive
+          action as unverified until your account and
+          device are checked.
+        </p>
       </main>
 
       <BottomNav />
 
-      {toast ? (
-        <div role="status" style={styles.toast}>
-          {toast}
-
-          <button
-            type="button"
-            onClick={() => setToast('')}
-            style={styles.toastClose}
-            aria-label="Dismiss notification"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      ) : null}
+      <style>{styles}</style>
     </div>
   );
 }
 
-function ActionSetting({
-  icon: Icon,
-  title,
-  description,
-  onClick,
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={styles.actionSetting}
-    >
-      <span style={styles.smallIcon}>
-        <Icon size={17} />
-      </span>
-
-      <span style={styles.rowCopy}>
-        <strong>{title}</strong>
-        <small>{description}</small>
-      </span>
-
-      <ChevronRight size={16} color="#8290ad" />
-    </button>
-  );
-}
-
-function MailIcon(props) {
-  return <Archive {...props} />;
-}
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    paddingBottom: '6.8rem',
+const styles = `
+  .security-page {
+    min-height: 100vh;
+    color: #f4f7ff;
     background:
-      'radial-gradient(circle at top, rgba(34,43,68,0.45) 0%, rgba(10,13,20,1) 38%, rgba(7,9,14,1) 100%)',
-    color: '#f4f7ff',
-  },
+      radial-gradient(
+        circle at 0% 0%,
+        rgba(124,92,255,0.2),
+        transparent 35%
+      ),
+      radial-gradient(
+        circle at 100% 18%,
+        rgba(77,215,255,0.1),
+        transparent 30%
+      ),
+      #080b13;
+  }
 
-  content: {
-    width: '100%',
-    maxWidth: '860px',
-    margin: '0 auto',
-    padding: '1rem 0.9rem',
-    display: 'grid',
-    gap: '0.9rem',
-  },
+  .security-content {
+    width: min(100%, 820px);
+    margin: 0 auto;
+    padding: 1rem 1rem 7rem;
+  }
 
-  heroCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.8rem',
-    padding: '1rem',
-    borderRadius: '1.3rem',
-    background: 'rgba(15,19,30,0.92)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    boxShadow: '0 18px 50px rgba(0,0,0,0.25)',
-  },
+  .security-header {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr 2.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
 
-  heroShield: {
-    width: '3rem',
-    height: '3rem',
-    display: 'grid',
-    placeItems: 'center',
-    flexShrink: 0,
-    borderRadius: '1rem',
-    background:
-      'linear-gradient(135deg, #7c5cff, #4dd7ff)',
-    color: '#fff',
-    boxShadow: '0 0 24px rgba(124,92,255,0.24)',
-  },
+  .security-header h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    letter-spacing: -0.03em;
+  }
 
-  heroCopy: {
-    minWidth: 0,
-    flex: 1,
-  },
+  .security-eyebrow {
+    margin: 0 0 0.2rem;
+    color: #8d9abb;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
 
-  title: {
-    margin: 0,
-    color: '#f5f8ff',
-    fontSize: '1.08rem',
-    fontWeight: 850,
-  },
+  .security-icon-button {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 0.9rem;
+    color: #eaf0ff;
+    background: rgba(255,255,255,0.06);
+    cursor: pointer;
+  }
 
-  subtitle: {
-    margin: '0.25rem 0 0',
-    color: '#96a3bf',
-    fontSize: '0.74rem',
-    lineHeight: 1.5,
-  },
+  .security-icon-button:last-child {
+    justify-self: end;
+  }
 
-  excellentBadge: {
-    alignSelf: 'flex-start',
-    padding: '0.35rem 0.5rem',
-    borderRadius: '999px',
-    background: 'rgba(130,233,193,0.12)',
-    color: '#82e9c1',
-    fontSize: '0.62rem',
-    fontWeight: 850,
-  },
+  .security-icon-button:disabled,
+  .security-scan-button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
 
-  scoreCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-    padding: '1rem',
-    borderRadius: '1.25rem',
-    background:
-      'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(15,19,30,0.94))',
-    border: '1px solid rgba(124,92,255,0.24)',
-    boxShadow: '0 18px 50px rgba(0,0,0,0.24)',
-  },
+  .security-error,
+  .security-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.9rem;
+    font-size: 0.75rem;
+  }
 
-  scoreCircle: {
-    width: '6.4rem',
-    height: '6.4rem',
-    display: 'grid',
-    placeItems: 'center',
-    flexShrink: 0,
-    borderRadius: '999px',
-    padding: '0.45rem',
-  },
+  .security-error {
+    color: #ffc2d0;
+    border: 1px solid rgba(255,91,132,0.25);
+    background: rgba(255,91,132,0.08);
+  }
 
-  scoreInner: {
-    width: '100%',
-    height: '100%',
-    display: 'grid',
-    placeItems: 'center',
-    alignContent: 'center',
-    borderRadius: '999px',
-    background: '#101624',
-  },
+  .security-notice {
+    color: #c9f9ff;
+    border: 1px solid rgba(77,215,255,0.2);
+    background: rgba(77,215,255,0.08);
+  }
 
-  scoreCopy: {
-    minWidth: 0,
-  },
+  .security-score-card,
+  .security-card {
+    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(17,22,36,0.72);
+    box-shadow: 0 20px 55px rgba(0,0,0,0.18);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
 
-  scoreTitle: {
-    margin: 0,
-    color: '#f5f8ff',
-    fontSize: '0.98rem',
-  },
+  .security-score-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 1.25rem;
+  }
 
-  scoreText: {
-    margin: '0.35rem 0 0',
-    color: '#96a3bf',
-    fontSize: '0.73rem',
-    lineHeight: 1.5,
-  },
+  .security-score-ring {
+    width: 5.2rem;
+    height: 5.2rem;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 50%;
+    background: conic-gradient(
+      var(--score-color) var(--score),
+      rgba(255,255,255,0.1) var(--score)
+    );
+  }
 
-  overviewGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '0.55rem',
-  },
+  .security-score-ring > div {
+    width: 4.2rem;
+    height: 4.2rem;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    border-radius: 50%;
+    background: #111626;
+  }
 
-  overviewCard: {
-    minHeight: '5.5rem',
-    display: 'grid',
-    alignContent: 'center',
-    gap: '0.2rem',
-    padding: '0.75rem',
-    borderRadius: '1rem',
-    background: 'rgba(15,19,30,0.9)',
-    border: '1px solid rgba(255,255,255,0.08)',
-  },
+  .security-score-ring strong {
+    color: #fff;
+    font-size: 1.25rem;
+  }
 
-  overviewIcon: {
-    width: '1.9rem',
-    height: '1.9rem',
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: '0.65rem',
-    background: 'rgba(255,255,255,0.05)',
-  },
+  .security-score-ring span {
+    color: #8491ad;
+    font-size: 0.6rem;
+  }
 
-  overviewValue: {
-    color: '#f5f8ff',
-    fontSize: '1rem',
-    fontWeight: 850,
-  },
+  .security-score-copy {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    gap: 0.2rem;
+  }
 
-  overviewLabel: {
-    color: '#96a3bf',
-    fontSize: '0.65rem',
-    fontWeight: 700,
-  },
+  .security-score-copy p {
+    margin: 0;
+    color: #8491ad;
+    font-size: 0.7rem;
+  }
 
-  card: {
-    padding: '1rem',
-    borderRadius: '1.25rem',
-    background: 'rgba(15,19,30,0.92)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    boxShadow: '0 18px 50px rgba(0,0,0,0.2)',
-  },
+  .security-score-copy h2 {
+    margin: 0;
+    color: #f4f7ff;
+    font-size: 1.1rem;
+  }
 
-  sectionHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.7rem',
-    marginBottom: '0.8rem',
-  },
+  .security-score-copy span {
+    color: #9aa7c1;
+    font-size: 0.72rem;
+  }
 
-  sectionTitleWrap: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.55rem',
-  },
+  .security-scan-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2.3rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(124,92,255,0.3);
+    border-radius: 0.75rem;
+    color: #e4dcff;
+    background: rgba(124,92,255,0.12);
+    font-size: 0.7rem;
+    font-weight: 850;
+    cursor: pointer;
+  }
 
-  sectionIcon: {
-    width: '2.15rem',
-    height: '2.15rem',
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: '0.7rem',
-    background:
-      'linear-gradient(135deg, rgba(124,92,255,0.24), rgba(77,215,255,0.12))',
-    color: '#dce8ff',
-  },
+  .security-section {
+    margin-top: 1.3rem;
+  }
 
-  sectionTitle: {
-    margin: 0,
-    color: '#f5f8ff',
-    fontSize: '0.92rem',
-    fontWeight: 850,
-  },
+  .security-section-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin: 0 0 0.6rem 0.2rem;
+    color: #b8a9ff;
+  }
 
-  settingsList: {
-    display: 'grid',
-    gap: '0.5rem',
-  },
+  .security-section-heading h2 {
+    margin: 0;
+    color: #edf2ff;
+    font-size: 0.9rem;
+  }
 
-  toggleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.7rem',
-    padding: '0.75rem',
-    borderRadius: '0.9rem',
-    border: '1px solid rgba(255,255,255,0.07)',
-    background: 'rgba(255,255,255,0.04)',
-  },
+  .security-section-heading p {
+    margin: 0.2rem 0 0;
+    color: #75829e;
+    font-size: 0.7rem;
+  }
 
-  actionSetting: {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.7rem',
-    padding: '0.75rem',
-    borderRadius: '0.9rem',
-    border: '1px solid rgba(255,255,255,0.07)',
-    background: 'rgba(255,255,255,0.04)',
-    color: '#f4f7ff',
-    textAlign: 'left',
-    cursor: 'pointer',
-  },
+  .security-card {
+    overflow: hidden;
+    border-radius: 1.2rem;
+  }
 
-  smallIcon: {
-    width: '2.2rem',
-    height: '2.2rem',
-    display: 'grid',
-    placeItems: 'center',
-    flexShrink: 0,
-    borderRadius: '0.7rem',
-    background:
-      'linear-gradient(135deg, rgba(124,92,255,0.22), rgba(77,215,255,0.1))',
-    color: '#dce8ff',
-  },
+  .security-device-row,
+  .security-event-row,
+  .security-action-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 4.3rem;
+    padding: 0.8rem 0.9rem;
+  }
 
-  rowCopy: {
-    minWidth: 0,
-    display: 'grid',
-    gap: '0.18rem',
-    flex: 1,
-  },
+  .security-device-row + .security-device-row,
+  .security-event-row + .security-event-row,
+  .security-action-row + .security-action-row {
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
 
-  checkbox: {
-    width: '1.15rem',
-    height: '1.15rem',
-    flexShrink: 0,
-    accentColor: '#7c5cff',
-  },
+  .security-device-icon,
+  .security-action-icon,
+  .security-event-icon {
+    width: 2.3rem;
+    height: 2.3rem;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 0.75rem;
+    color: #c8bfff;
+    background: rgba(124,92,255,0.13);
+  }
 
-  deviceList: {
-    display: 'grid',
-    gap: '0.55rem',
-  },
+  .security-event-icon.warning {
+    color: #ffd166;
+    background: rgba(255,209,102,0.12);
+  }
 
-  deviceCard: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.65rem',
-    padding: '0.75rem',
-    borderRadius: '0.9rem',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.07)',
-  },
+  .security-event-icon.critical {
+    color: #ff9bb4;
+    background: rgba(255,91,132,0.12);
+  }
 
-  deviceIcon: {
-    width: '2.3rem',
-    height: '2.3rem',
-    display: 'grid',
-    placeItems: 'center',
-    flexShrink: 0,
-    borderRadius: '0.7rem',
-    background: 'rgba(77,215,255,0.1)',
-    color: '#9deeff',
-  },
+  .security-device-copy,
+  .security-event-row > div:last-child,
+  .security-action-row > span {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    gap: 0.2rem;
+  }
 
-  deviceCopy: {
-    minWidth: 0,
-    flex: 1,
-    display: 'grid',
-    gap: '0.2rem',
-  },
+  .security-device-copy strong,
+  .security-event-row strong,
+  .security-action-row strong {
+    color: #edf2ff;
+    font-size: 0.78rem;
+  }
 
-  deviceTitleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '0.4rem',
-  },
+  .security-device-copy span,
+  .security-event-row span,
+  .security-action-row small {
+    color: #8491ad;
+    font-size: 0.68rem;
+  }
 
-  currentBadge: {
-    padding: '0.2rem 0.35rem',
-    borderRadius: '999px',
-    background: 'rgba(130,233,193,0.12)',
-    color: '#82e9c1',
-    fontSize: '0.55rem',
-    fontWeight: 850,
-  },
+  .security-device-copy small,
+  .security-event-row small {
+    color: #63708b;
+    font-size: 0.63rem;
+  }
 
-  deviceMeta: {
-    color: '#96a3bf',
-    fontSize: '0.67rem',
-    lineHeight: 1.4,
-  },
+  .security-device-action {
+    min-height: 2.15rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid rgba(124,92,255,0.3);
+    border-radius: 0.7rem;
+    color: #e4dcff;
+    background: rgba(124,92,255,0.12);
+    font-size: 0.67rem;
+    font-weight: 850;
+    cursor: pointer;
+  }
 
-  inlineActions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.35rem',
-    marginTop: '0.35rem',
-  },
+  .security-device-action.is-trusted {
+    border-color: rgba(77,215,255,0.25);
+    color: #c9f9ff;
+    background: rgba(77,215,255,0.1);
+  }
 
-  smallAction: {
-    minHeight: '1.9rem',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    padding: '0 0.5rem',
-    border: '1px solid rgba(124,92,255,0.28)',
-    borderRadius: '999px',
-    background: 'rgba(124,92,255,0.1)',
-    color: '#dce5f8',
-    fontSize: '0.6rem',
-    fontWeight: 800,
-    cursor: 'pointer',
-  },
+  .security-action-row {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
 
-  smallDangerAction: {
-    minHeight: '1.9rem',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    padding: '0 0.5rem',
-    border: '1px solid rgba(255,79,122,0.22)',
-    borderRadius: '999px',
-    background: 'rgba(255,79,122,0.08)',
-    color: '#ffb1c8',
-    fontSize: '0.6rem',
-    fontWeight: 800,
-    cursor: 'pointer',
-  },
+  .security-action-row > svg {
+    color: #7483a1;
+  }
 
-  timeline: {
-    display: 'grid',
-    gap: '0.1rem',
-  },
+  .security-action-row.is-danger .security-action-icon {
+    color: #ff9bb4;
+    background: rgba(255,91,132,0.1);
+  }
 
-  sessionItem: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.65rem',
-    padding: '0.75rem 0',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-  },
+  .security-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 5rem;
+    color: #8491ad;
+    font-size: 0.75rem;
+  }
 
-  timelineDot: {
-    width: '0.6rem',
-    height: '0.6rem',
-    marginTop: '0.3rem',
-    flexShrink: 0,
-    borderRadius: '999px',
-  },
+  .security-footer {
+    margin: 1.2rem 0 0;
+    color: #697691;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    text-align: center;
+  }
 
-  sessionCopy: {
-    minWidth: 0,
-    display: 'grid',
-    gap: '0.2rem',
-    flex: 1,
-  },
+  .security-loading-header,
+  .security-loading-card {
+    border-radius: 1rem;
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.05),
+      rgba(255,255,255,0.11),
+      rgba(255,255,255,0.05)
+    );
+    background-size: 220% 100%;
+    animation: security-skeleton 1.4s infinite;
+  }
 
-  sessionStatus: {
-    width: 'fit-content',
-    padding: '0.2rem 0.35rem',
-    borderRadius: '999px',
-    background: 'rgba(255,255,255,0.06)',
-    color: '#cbd6ec',
-    fontSize: '0.57rem',
-    fontWeight: 800,
-  },
+  .security-loading-header {
+    width: 14rem;
+    height: 2.8rem;
+    margin-bottom: 1rem;
+  }
 
-  fullAction: {
-    width: '100%',
-    minHeight: '2.6rem',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.4rem',
-    marginTop: '0.75rem',
-    border: '1px solid rgba(255,79,122,0.22)',
-    borderRadius: '999px',
-    background: 'rgba(255,79,122,0.08)',
-    color: '#ffb1c8',
-    fontSize: '0.72rem',
-    fontWeight: 850,
-    cursor: 'pointer',
-  },
+  .security-loading-card {
+    height: 16rem;
+    margin-top: 1rem;
+  }
 
-  alertList: {
-    display: 'grid',
-    gap: '0.55rem',
-  },
+  .security-spin {
+    animation: security-spin 0.9s linear infinite;
+  }
 
-  alertRow: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.6rem',
-    padding: '0.7rem',
-    borderRadius: '0.85rem',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.07)',
-  },
+  @keyframes security-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
-  statusDot: {
-    width: '0.55rem',
-    height: '0.55rem',
-    marginTop: '0.3rem',
-    flexShrink: 0,
-    borderRadius: '999px',
-  },
+  @keyframes security-skeleton {
+    to {
+      background-position: -220% 0;
+    }
+  }
 
-  alertCopy: {
-    minWidth: 0,
-    display: 'grid',
-    gap: '0.2rem',
-    flex: 1,
-  },
+  @media (max-width: 560px) {
+    .security-content {
+      padding-right: 0.75rem;
+      padding-left: 0.75rem;
+    }
 
-  trustedRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.55rem',
-    padding: '0.7rem',
-    borderRadius: '0.85rem',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.07)',
-  },
+    .security-score-card {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
 
-  systemGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '0.45rem',
-  },
+    .security-scan-button {
+      margin-left: auto;
+    }
 
-  systemRow: {
-    minWidth: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.35rem',
-    padding: '0.55rem',
-    borderRadius: '0.7rem',
-    background: 'rgba(255,255,255,0.04)',
-  },
-
-  systemStatus: {
-    display: 'grid',
-    placeItems: 'center',
-    color: '#82e9c1',
-  },
-
-  systemName: {
-    minWidth: 0,
-    overflow: 'hidden',
-    flex: 1,
-    color: '#cbd6ec',
-    fontSize: '0.6rem',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  },
-
-  systemLabel: {
-    fontSize: '0.55rem',
-    fontWeight: 850,
-  },
-
-  actionGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '0.5rem',
-  },
-
-  emergencyButton: {
-    minHeight: '3rem',
-    display: 'grid',
-    placeItems: 'center',
-    gap: '0.25rem',
-    padding: '0.5rem',
-    border: '1px solid rgba(255,79,122,0.2)',
-    borderRadius: '0.85rem',
-    background:
-      'linear-gradient(135deg, rgba(255,79,122,0.1), rgba(124,92,255,0.1))',
-    color: '#ffd7e2',
-    fontSize: '0.62rem',
-    fontWeight: 800,
-    textAlign: 'center',
-    cursor: 'pointer',
-  },
-
-  toast: {
-    position: 'fixed',
-    right: '1rem',
-    bottom: '6.2rem',
-    left: '1rem',
-    zIndex: 1200,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.7rem',
-    width: 'fit-content',
-    maxWidth: 'calc(100% - 2rem)',
-    margin: '0 auto',
-    padding: '0.75rem 0.9rem',
-    borderRadius: '999px',
-    background: 'rgba(17,22,35,0.97)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
-    color: '#eaf0ff',
-    fontSize: '0.72rem',
-    fontWeight: 750,
-  },
-
-  toastClose: {
-    width: '1.6rem',
-    height: '1.6rem',
-    display: 'grid',
-    placeItems: 'center',
-    border: 0,
-    borderRadius: '999px',
-    background: 'rgba(255,255,255,0.06)',
-    color: '#aab6cf',
-    cursor: 'pointer',
-  },
-};
+    .security-device-row {
+      align-items: flex-start;
+    }
+  }
+`;

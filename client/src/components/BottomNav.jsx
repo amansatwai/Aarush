@@ -1,14 +1,19 @@
-// src/components/BottomNav.jsx
 import { useEffect, useRef } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  NavLink,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
+import {
+  Bell,
   Clapperboard,
-  Clock,
   Home,
   Lock,
   MessageCircle,
   PlusSquare,
 } from 'lucide-react';
+import { useNotificationBadge } from '../hooks/useNotifications';
+import NotificationBadge from './NotificationBadge';
 
 const NAVIGATION_DEBOUNCE = 350;
 
@@ -41,7 +46,18 @@ const NAVIGATION_ITEMS = [
     to: '/chats',
     label: 'Chats',
     Icon: MessageCircle,
-    matches: ['/chats'],
+    badgeType: 'message',
+    matches: ['/chats', '/chat'],
+  },
+  {
+    to: '/notification-center',
+    label: 'Notifications',
+    Icon: Bell,
+    badgeType: 'notification',
+    matches: [
+      '/notification-center',
+      '/notifications',
+    ],
   },
 ];
 
@@ -58,11 +74,14 @@ function routeMatches(pathname, item) {
   });
 }
 
-export default function BottomNav({
-  notificationCount = 0,
-}) {
+export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  const {
+    unreadMessageCount,
+    unreadNotificationCount,
+  } = useNotificationBadge();
 
   const lastNavigationRef = useRef({
     path: '',
@@ -106,6 +125,18 @@ export default function BottomNav({
     navigateSafely(path);
   };
 
+  const getBadgeCount = (badgeType) => {
+    if (badgeType === 'message') {
+      return unreadMessageCount;
+    }
+
+    if (badgeType === 'notification') {
+      return unreadNotificationCount;
+    }
+
+    return 0;
+  };
+
   return (
     <nav
       className="bottom-nav"
@@ -113,74 +144,87 @@ export default function BottomNav({
       style={styles.nav}
     >
       <div style={styles.navigationGrid}>
-        {NAVIGATION_ITEMS.map(({ to, label, Icon, matches }) => {
-          const active = routeMatches(location.pathname, {
-            to,
-            matches,
-          });
+        {NAVIGATION_ITEMS.map(
+          ({ to, label, Icon, badgeType, matches }) => {
+            const active = routeMatches(
+              location.pathname,
+              {
+                to,
+                matches,
+              }
+            );
 
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={(event) =>
-                handleNavigation(event, to)
-              }
-              className={
-                active
-                  ? 'bottom-nav-link active'
-                  : 'bottom-nav-link'
-              }
-              aria-current={active ? 'page' : undefined}
-              aria-label={
-                label === 'One Tap Lock'
-                  ? 'One Tap Lock'
-                  : label
-              }
-              style={{
-                ...styles.navigationLink,
-                ...(active
-                  ? styles.activeNavigationLink
-                  : {}),
-              }}
-            >
-              <span
-                aria-hidden="true"
+            const badgeCount =
+              getBadgeCount(badgeType);
+
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={(event) =>
+                  handleNavigation(event, to)
+                }
+                className={
+                  active
+                    ? 'bottom-nav-link active'
+                    : 'bottom-nav-link'
+                }
+                aria-current={
+                  active ? 'page' : undefined
+                }
+                aria-label={
+                  label === 'One Tap Lock'
+                    ? 'One Tap Lock'
+                    : label
+                }
                 style={{
-                  ...styles.activeIndicator,
+                  ...styles.navigationLink,
                   ...(active
-                    ? styles.visibleActiveIndicator
+                    ? styles.activeNavigationLink
                     : {}),
                 }}
-              />
-
-              <span style={styles.navigationIcon}>
-                <Icon
-                  size={20}
-                  strokeWidth={active ? 2.45 : 2.05}
-                  fill={
-                    active && label === 'Home'
-                      ? 'currentColor'
-                      : 'none'
-                  }
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    ...styles.activeIndicator,
+                    ...(active
+                      ? styles.visibleActiveIndicator
+                      : {}),
+                  }}
                 />
 
-                {label === 'Chats' &&
-                notificationCount > 0 ? (
-                  <span style={styles.notificationBadge}>
-                    {notificationCount > 99
-                      ? '99+'
-                      : notificationCount}
-                  </span>
-                ) : null}
-              </span>
+                <span style={styles.navigationIcon}>
+                  <Icon
+                    size={19}
+                    strokeWidth={active ? 2.45 : 2.05}
+                    fill={
+                      active && label === 'Home'
+                        ? 'currentColor'
+                        : 'none'
+                    }
+                  />
 
-              <span style={styles.navigationLabel}>
-                {label === 'One Tap Lock' ? 'Lock' : label}
-              </span>
-            </NavLink>
-          );
-        })}
+                  {badgeType && badgeCount > 0 ? (
+                    <NotificationBadge
+                      type={badgeType}
+                      size="small"
+                      style={styles.badgeOverride}
+                    />
+                  ) : null}
+                </span>
+
+                <span style={styles.navigationLabel}>
+                  {label === 'One Tap Lock'
+                    ? 'Lock'
+                    : label === 'Notifications'
+                      ? 'Alerts'
+                      : label}
+                </span>
+              </NavLink>
+            );
+          }
+        )}
       </div>
 
       <style>{`
@@ -209,14 +253,23 @@ export default function BottomNav({
           outline-offset: 2px;
         }
 
-        @media (max-width: 420px) {
+        @media (max-width: 520px) {
           .bottom-nav-link {
             min-height: 3.5rem !important;
-            border-radius: 1rem !important;
+            border-radius: 0.95rem !important;
           }
 
           .bottom-nav-link span:last-child {
-            font-size: 0.68rem !important;
+            font-size: 0.62rem !important;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .bottom-nav-link span:last-child {
+            max-width: 3.8rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
         }
 
@@ -225,7 +278,7 @@ export default function BottomNav({
             right: 1rem !important;
             bottom: 1rem !important;
             left: 1rem !important;
-            max-width: 860px;
+            max-width: 920px;
             margin: 0 auto;
             border: 1px solid rgba(255,255,255,0.08) !important;
             border-radius: 1.25rem !important;
@@ -250,11 +303,11 @@ const styles = {
     left: 0,
     zIndex: 999,
     padding:
-      '0.55rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom))',
-    background:
-      'linear-gradient(180deg, rgba(8,11,18,0.58) 0%, rgba(8,11,18,0.92) 22%, rgba(8,11,18,0.98) 100%)',
+      '0.55rem 0.55rem calc(0.65rem + env(safe-area-inset-bottom))',
     borderTop: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '1.25rem 1.25rem 0 0',
+    background:
+      'linear-gradient(180deg, rgba(8,11,18,0.58) 0%, rgba(8,11,18,0.92) 22%, rgba(8,11,18,0.98) 100%)',
     boxShadow: '0 -10px 30px rgba(0,0,0,0.28)',
     backdropFilter: 'blur(22px)',
     WebkitBackdropFilter: 'blur(22px)',
@@ -262,11 +315,12 @@ const styles = {
 
   navigationGrid: {
     width: '100%',
-    maxWidth: '860px',
+    maxWidth: '920px',
     margin: '0 auto',
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-    gap: '0.4rem',
+    gridTemplateColumns:
+      'repeat(6, minmax(0, 1fr))',
+    gap: '0.3rem',
     alignItems: 'stretch',
   },
 
@@ -280,7 +334,7 @@ const styles = {
     justifyContent: 'center',
     gap: '0.22rem',
     border: '1px solid transparent',
-    borderRadius: '1.1rem',
+    borderRadius: '1rem',
     color: '#93a0bb',
     background: 'rgba(255,255,255,0.015)',
     textDecoration: 'none',
@@ -312,7 +366,7 @@ const styles = {
   },
 
   visibleActiveIndicator: {
-    width: '1.45rem',
+    width: '1.35rem',
     background:
       'linear-gradient(90deg, #7c5cff, #ff4fd8 48%, #4dd7ff)',
     boxShadow: '0 0 14px rgba(77,215,255,0.55)',
@@ -329,32 +383,20 @@ const styles = {
     filter: 'drop-shadow(0 0 8px rgba(124,92,255,0.08))',
   },
 
+  badgeOverride: {
+    top: '-0.4rem',
+    right: '-0.58rem',
+  },
+
   navigationLabel: {
     maxWidth: '100%',
     overflow: 'hidden',
     color: 'inherit',
-    fontSize: '0.72rem',
+    fontSize: '0.65rem',
     lineHeight: 1,
     fontWeight: 700,
     textAlign: 'center',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-  },
-
-  notificationBadge: {
-    position: 'absolute',
-    top: '-0.38rem',
-    right: '-0.55rem',
-    minWidth: '1rem',
-    height: '1rem',
-    display: 'grid',
-    placeItems: 'center',
-    padding: '0 0.2rem',
-    border: '2px solid #0c111b',
-    borderRadius: '999px',
-    color: '#ffffff',
-    background: 'linear-gradient(135deg, #ff4fd8, #7c5cff)',
-    fontSize: '0.52rem',
-    fontWeight: 900,
   },
 };
