@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -15,7 +16,6 @@ import {
   Link2,
   MapPin,
   MessageCircle,
-  Search,
   Share2,
   ShieldCheck,
   UserPlus,
@@ -28,7 +28,6 @@ import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
 import {
   acceptFollowRequest,
-  cancelFollowRequest,
   followUser,
   getFollowerCount,
   getFollowingCount,
@@ -50,64 +49,77 @@ const PROFILE_FIELDS = `
   account_type,
   is_private,
   avatar_url,
-  updated_at
+  updated_at,
+  verified
 `;
 
 const GUEST_KEYS = {
   isGuest: 'aarush_is_guest',
-  guestSession: 'aarush_guest_session',
-  guestProfile: 'aarush_guest_profile',
+  session: 'aarush_guest_session',
+  profile: 'aarush_guest_profile',
 };
 
+function isBrowser() {
+  return typeof window !== 'undefined';
+}
+
 function isGuestMode() {
-  return (
-    localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
-    localStorage.getItem(GUEST_KEYS.guestSession) !== null
-  );
+  if (!isBrowser()) return false;
+
+  try {
+    return (
+      window.localStorage.getItem(GUEST_KEYS.isGuest) ===
+        'true' &&
+      window.localStorage.getItem(GUEST_KEYS.session) !==
+        null
+    );
+  } catch {
+    return false;
+  }
 }
 
 function normalizeUsername(value) {
-  if (!value) {
-    return '';
-  }
-
-  return value.startsWith('@')
-    ? value.slice(1)
-    : value;
+  return String(value || '')
+    .trim()
+    .replace(/^@/, '');
 }
 
 function getGuestProfile() {
+  const fallback = {
+    id: 'guest',
+    full_name: 'Guest User',
+    username: 'guest',
+    bio: 'Sign in to access your real profile.',
+    account_type: 'Guest',
+    avatar_url: '',
+    is_private: false,
+    followers_count: 0,
+    following_count: 0,
+    posts_count: 0,
+    stories_count: 0,
+    highlights_count: 0,
+  };
+
+  if (!isBrowser()) return fallback;
+
   try {
-    const stored = localStorage.getItem(
-      GUEST_KEYS.guestProfile
+    const value = window.localStorage.getItem(
+      GUEST_KEYS.profile
     );
 
-    return stored
-      ? JSON.parse(stored)
-      : {
-          id: 'guest',
-          full_name: 'Guest User',
-          username: 'guest',
-          bio: 'Sign in to access your real profile.',
-          account_type: 'Guest',
-          avatar_url: '',
-          is_private: false,
-        };
-  } catch {
+    if (!value) return fallback;
+
     return {
-      id: 'guest',
-      full_name: 'Guest User',
-      username: 'guest',
-      bio: 'Sign in to access your real profile.',
-      account_type: 'Guest',
-      avatar_url: '',
-      is_private: false,
+      ...fallback,
+      ...JSON.parse(value),
     };
+  } catch {
+    return fallback;
   }
 }
 
 function formatCount(value) {
-  const number = Number(value || 0);
+  const number = Number(value) || 0;
 
   if (number >= 1000000) {
     return `${(number / 1000000).toFixed(1)}M`;
@@ -120,20 +132,7 @@ function formatCount(value) {
   return String(number);
 }
 
-function ProfileStat({ label, value, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={styles.statButton}
-    >
-      <strong>{formatCount(value)}</strong>
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function Avatar({ profile, size = '6.2rem' }) {
+function Avatar({ profile, size = '5.8rem' }) {
   if (profile?.avatar_url) {
     return (
       <img
@@ -150,40 +149,53 @@ function Avatar({ profile, size = '6.2rem' }) {
 
   return (
     <span
+      aria-label="Profile avatar placeholder"
       style={{
         ...styles.placeholderAvatar,
         width: size,
         height: size,
       }}
     >
-      <UserRound size={35} />
+      <UserRound size={32} />
     </span>
   );
 }
 
-function RelationshipButton({
-  relationship,
-  incomingRequest,
-  loading,
+function ProfileStat({ label, value, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={styles.statButton}
+    >
+      <strong>{formatCount(value)}</strong>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function RelationshipActions({
+  ownProfile,
   guest,
+  relationship,
+  request,
+  loading,
   onFollow,
   onUnfollow,
   onAccept,
   onReject,
-  onSignIn,
+  onLogin,
 }) {
-  if (relationship?.isOwnProfile) {
-    return null;
-  }
+  if (ownProfile) return null;
 
-  if (incomingRequest) {
+  if (request) {
     return (
       <div style={styles.requestActions}>
         <button
           type="button"
-          onClick={onAccept}
           disabled={loading}
-          style={styles.primaryAction}
+          onClick={onAccept}
+          style={styles.primaryButton}
         >
           <Check size={15} />
           Accept
@@ -191,9 +203,9 @@ function RelationshipButton({
 
         <button
           type="button"
-          onClick={onReject}
           disabled={loading}
-          style={styles.secondaryAction}
+          onClick={onReject}
+          style={styles.secondaryButton}
         >
           <X size={15} />
           Reject
@@ -206,8 +218,8 @@ function RelationshipButton({
     return (
       <button
         type="button"
-        onClick={onSignIn}
-        style={styles.primaryAction}
+        onClick={onLogin}
+        style={styles.primaryButton}
       >
         <UserPlus size={15} />
         Follow
@@ -219,9 +231,9 @@ function RelationshipButton({
     return (
       <button
         type="button"
-        onClick={onUnfollow}
         disabled={loading}
-        style={styles.followingAction}
+        onClick={onUnfollow}
+        style={styles.followingButton}
       >
         <Check size={15} />
         Following
@@ -233,9 +245,9 @@ function RelationshipButton({
     return (
       <button
         type="button"
-        onClick={onUnfollow}
         disabled={loading}
-        style={styles.requestedAction}
+        onClick={onUnfollow}
+        style={styles.requestedButton}
       >
         Requested
       </button>
@@ -245,18 +257,19 @@ function RelationshipButton({
   return (
     <button
       type="button"
-      onClick={onFollow}
       disabled={loading}
-      style={styles.primaryAction}
+      onClick={onFollow}
+      style={styles.primaryButton}
     >
       <UserPlus size={15} />
-      {relationship?.followBack ? 'Follow back' : 'Follow'}
+      {relationship?.followBack
+        ? 'Follow back'
+        : 'Follow'}
     </button>
   );
 }
 
-function PeopleSheet({
-  title,
+function MutualFollowersSheet({
   people,
   onClose,
   onOpen,
@@ -265,6 +278,7 @@ function PeopleSheet({
     <div
       role="dialog"
       aria-modal="true"
+      aria-label="Mutual followers"
       onClick={onClose}
       style={styles.sheetBackdrop}
     >
@@ -273,15 +287,15 @@ function PeopleSheet({
         style={styles.sheet}
       >
         <div style={styles.sheetHeader}>
-          <h2>{title}</h2>
+          <strong>Mutual Followers</strong>
 
           <button
             type="button"
             onClick={onClose}
-            style={styles.closeButton}
-            aria-label="Close list"
+            aria-label="Close mutual followers"
+            style={styles.iconAction}
           >
-            <X size={17} />
+            <X size={16} />
           </button>
         </div>
 
@@ -294,7 +308,10 @@ function PeopleSheet({
                 onClick={() => onOpen(person)}
                 style={styles.personRow}
               >
-                <Avatar profile={person} size="2.6rem" />
+                <Avatar
+                  profile={person}
+                  size="2.5rem"
+                />
 
                 <span style={styles.personCopy}>
                   <strong>
@@ -310,10 +327,9 @@ function PeopleSheet({
             ))}
           </div>
         ) : (
-          <div style={styles.emptyPeople}>
-            <Users size={25} />
-            <span>No profiles to show.</span>
-          </div>
+          <p style={styles.emptyText}>
+            No mutual followers.
+          </p>
         )}
       </section>
     </div>
@@ -323,6 +339,8 @@ function PeopleSheet({
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { username: routeUsername } = useParams();
+  const mountedRef = useRef(true);
+  const noticeTimerRef = useRef(null);
 
   const [profile, setProfile] = useState(null);
   const [user, setUser] = useState(null);
@@ -341,38 +359,47 @@ export default function ProfilePage() {
     useState(0);
   const [mutualFollowers, setMutualFollowers] =
     useState([]);
-  const [peopleSheet, setPeopleSheet] =
-    useState(null);
-  const [people, setPeople] = useState([]);
+  const [peopleSheetOpen, setPeopleSheetOpen] =
+    useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] =
     useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const profileUsername = normalizeUsername(
-    profile?.username
+  const profileUsername = useMemo(
+    () => normalizeUsername(profile?.username),
+    [profile?.username]
   );
 
-  const displayName =
-    profile?.full_name || 'Aarush User';
+  const displayName = profile?.full_name || 'Aarush User';
 
-  const isPrivate = Boolean(profile?.is_private);
-
-  const isOwnProfile = useMemo(
-    () => Boolean(user && profile && user.id === profile.id),
-    [profile, user]
+  const ownProfile = Boolean(
+    user?.id &&
+      profile?.id &&
+      user.id === profile.id
   );
 
   const showNotice = useCallback((message) => {
+    if (!mountedRef.current) return;
+
     setNotice(message);
 
-    window.setTimeout(() => {
-      setNotice('');
+    if (noticeTimerRef.current) {
+      window.clearTimeout(noticeTimerRef.current);
+    }
+
+    noticeTimerRef.current = window.setTimeout(() => {
+      if (mountedRef.current) {
+        setNotice('');
+      }
+      noticeTimerRef.current = null;
     }, 2600);
   }, []);
 
   const loadCounts = useCallback(async (profileId) => {
+    if (!profileId || profileId === 'guest') return;
+
     const [
       followers,
       following,
@@ -382,7 +409,6 @@ export default function ProfilePage() {
     ] = await Promise.all([
       getFollowerCount(profileId),
       getFollowingCount(profileId),
-
       supabase
         .from('posts')
         .select('id', {
@@ -390,7 +416,6 @@ export default function ProfilePage() {
           head: true,
         })
         .eq('user_id', profileId),
-
       supabase
         .from('stories')
         .select('id', {
@@ -399,7 +424,6 @@ export default function ProfilePage() {
         })
         .eq('user_id', profileId)
         .gt('expires_at', new Date().toISOString()),
-
       supabase
         .from('story_highlights')
         .select('id', {
@@ -409,11 +433,13 @@ export default function ProfilePage() {
         .eq('user_id', profileId),
     ]);
 
-    setFollowersCount(followers);
-    setFollowingCount(following);
-    setPostsCount(posts.count || 0);
-    setStoriesCount(stories.count || 0);
-    setHighlightsCount(highlights.count || 0);
+    if (!mountedRef.current) return;
+
+    setFollowersCount(Number(followers) || 0);
+    setFollowingCount(Number(following) || 0);
+    setPostsCount(Number(posts?.count) || 0);
+    setStoriesCount(Number(stories?.count) || 0);
+    setHighlightsCount(Number(highlights?.count) || 0);
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -421,30 +447,29 @@ export default function ProfilePage() {
     setError('');
 
     try {
-      const guestMode = isGuestMode();
-
-      if (guestMode) {
-        const guestProfile = getGuestProfile();
+      if (isGuestMode()) {
+        const guestData = getGuestProfile();
 
         setGuest(true);
         setUser(null);
-        setProfile(guestProfile);
+        setProfile(guestData);
         setRelationship(null);
         setIncomingRequest(null);
+        setMutualFollowers([]);
         setFollowersCount(
-          Number(guestProfile.followers_count || 0)
+          Number(guestData.followers_count) || 0
         );
         setFollowingCount(
-          Number(guestProfile.following_count || 0)
+          Number(guestData.following_count) || 0
         );
         setPostsCount(
-          Number(guestProfile.posts_count || 0)
+          Number(guestData.posts_count) || 0
         );
         setStoriesCount(
-          Number(guestProfile.stories_count || 0)
+          Number(guestData.stories_count) || 0
         );
         setHighlightsCount(
-          Number(guestProfile.highlights_count || 0)
+          Number(guestData.highlights_count) || 0
         );
         return;
       }
@@ -473,111 +498,126 @@ export default function ProfilePage() {
       const { data: profileRow, error: profileError } =
         await query.maybeSingle();
 
-      if (profileError) {
-        throw profileError;
-      }
+      if (profileError) throw profileError;
 
       if (!profileRow) {
         throw new Error('Profile not found.');
       }
 
-      const [
-        nextRelationship,
-        counts,
-      ] = await Promise.all([
-        getRelationship(
+      const nextRelationship =
+        await getRelationship(
           currentUser.id,
           profileRow.id
-        ),
-        loadCounts(profileRow.id),
-      ]);
+        );
 
-      const { data: pendingRequest } =
-        await supabase
-          .from('follows')
-          .select('id, follower_id, following_id, status')
-          .eq('follower_id', profileRow.id)
-          .eq('following_id', currentUser.id)
-          .eq('status', 'pending')
-          .maybeSingle();
+      const { data: pendingRequest } = await supabase
+        .from('follows')
+        .select('id, follower_id, following_id, status')
+        .eq('follower_id', profileRow.id)
+        .eq('following_id', currentUser.id)
+        .eq('status', 'pending')
+        .maybeSingle();
 
       setGuest(false);
       setUser(currentUser);
       setProfile(profileRow);
-      setRelationship(nextRelationship);
+      setRelationship(nextRelationship || null);
       setIncomingRequest(pendingRequest || null);
 
-      void counts;
+      await loadCounts(profileRow.id);
+
+      if (
+        currentUser.id !== profileRow.id
+      ) {
+        try {
+          const result = await getMutualFollowers(
+            currentUser.id,
+            profileRow.id
+          );
+
+          setMutualFollowers(
+            Array.isArray(result) ? result : []
+          );
+        } catch {
+          setMutualFollowers([]);
+        }
+      } else {
+        setMutualFollowers([]);
+      }
     } catch (loadError) {
-      setError(
-        loadError.message || 'Unable to load profile.'
-      );
+      if (mountedRef.current) {
+        setError(
+          loadError?.message ||
+            'Unable to load profile.'
+        );
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [loadCounts, navigate, routeUsername]);
 
   useEffect(() => {
+    mountedRef.current = true;
     loadProfile();
+
+    return () => {
+      mountedRef.current = false;
+
+      if (noticeTimerRef.current) {
+        window.clearTimeout(noticeTimerRef.current);
+      }
+    };
   }, [loadProfile]);
 
   useEffect(() => {
+    if (
+      guest ||
+      !profile?.id ||
+      !user?.id
+    ) {
+      return undefined;
+    }
+
+    let active = true;
+
     const cleanup = subscribeToFollowChanges(
-      async (payload) => {
-        const targetProfileId = profile?.id;
+      async () => {
+        if (!active || !profile?.id) return;
 
-        if (!targetProfileId) {
-          return;
-        }
+        try {
+          await loadCounts(profile.id);
 
-        const followerId =
-          payload.new?.follower_id ||
-          payload.old?.follower_id;
-
-        const followingId =
-          payload.new?.following_id ||
-          payload.old?.following_id;
-
-        if (
-          followerId !== targetProfileId &&
-          followingId !== targetProfileId
-        ) {
-          return;
-        }
-
-        await loadCounts(targetProfileId);
-
-        if (user && !guest) {
           const nextRelationship =
             await getRelationship(
               user.id,
-              targetProfileId
+              profile.id
             );
 
-          setRelationship(nextRelationship);
-
-          const { data: nextRequest } =
-            await supabase
-              .from('follows')
-              .select(
-                'id, follower_id, following_id, status'
-              )
-              .eq('follower_id', targetProfileId)
-              .eq('following_id', user.id)
-              .eq('status', 'pending')
-              .maybeSingle();
-
-          setIncomingRequest(nextRequest || null);
+          if (active) {
+            setRelationship(
+              nextRelationship || null
+            );
+          }
+        } catch {
+          // Realtime refresh is best effort.
         }
       }
     );
 
-    return cleanup;
+    return () => {
+      active = false;
+
+      if (typeof cleanup === 'function') {
+        cleanup();
+      }
+    };
   }, [
     guest,
     loadCounts,
     profile?.id,
-    user,
+    user?.id,
   ]);
 
   const handleFollow = useCallback(async () => {
@@ -586,111 +626,89 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!user || !profile || isOwnProfile) {
-      return;
-    }
+    if (!profile || ownProfile) return;
 
-    const previous = relationship;
     setActionLoading(true);
-
-    setRelationship((current) => ({
-      ...current,
-      following: !profile.is_private,
-      requested: Boolean(profile.is_private),
-      state: profile.is_private
-        ? 'requested'
-        : 'following',
-    }));
-
-    setFollowersCount((count) =>
-      profile.is_private ? count : count + 1
-    );
 
     try {
       const result = await followUser(profile.id);
 
+      const status = result?.status;
+
       setRelationship((current) => ({
-        ...current,
-        following: result.status === 'accepted',
-        requested: result.status === 'pending',
-        state: result.status,
+        ...(current || {}),
+        following: status === 'accepted',
+        requested: status === 'pending',
+        state: status,
       }));
 
-      if (result.status === 'accepted') {
-        setFollowersCount((count) => count);
+      if (status === 'accepted') {
+        setFollowersCount((value) => value + 1);
       }
-    } catch (followError) {
-      setRelationship(previous);
-      setFollowersCount((count) =>
-        profile.is_private
-          ? count
-          : Math.max(0, count - 1)
-      );
+
       showNotice(
-        followError.message || 'Unable to follow profile.'
+        status === 'pending'
+          ? 'Follow request sent.'
+          : 'Profile followed.'
+      );
+    } catch (followError) {
+      showNotice(
+        followError?.message ||
+          'Unable to follow profile.'
       );
     } finally {
       setActionLoading(false);
     }
   }, [
     guest,
-    isOwnProfile,
+    ownProfile,
     profile,
-    relationship,
     showNotice,
-    user,
   ]);
 
   const handleUnfollow = useCallback(async () => {
-    if (guest) {
-      showNotice('Sign in to manage follows.');
-      return;
-    }
+    if (guest || !profile) return;
 
-    if (!profile) {
-      return;
-    }
-
-    const previous = relationship;
     const wasFollowing = Boolean(
       relationship?.following
     );
 
     setActionLoading(true);
-    setRelationship({
-      ...relationship,
-      following: false,
-      requested: false,
-      state: 'not_following',
-    });
-
-    if (wasFollowing) {
-      setFollowersCount((count) =>
-        Math.max(0, count - 1)
-      );
-    }
 
     try {
       await unfollowUser(profile.id);
-    } catch (followError) {
-      setRelationship(previous);
+
+      setRelationship((current) => ({
+        ...(current || {}),
+        following: false,
+        requested: false,
+        state: 'not_following',
+      }));
 
       if (wasFollowing) {
-        setFollowersCount((count) => count + 1);
+        setFollowersCount((value) =>
+          Math.max(0, value - 1)
+        );
       }
 
+      showNotice('Follow removed.');
+    } catch (followError) {
       showNotice(
-        followError.message || 'Unable to update follow.'
+        followError?.message ||
+          'Unable to update follow.'
       );
     } finally {
       setActionLoading(false);
     }
-  }, [guest, profile, relationship, showNotice]);
+  }, [
+    guest,
+    profile,
+    relationship?.following,
+    showNotice,
+  ]);
 
   const handleAccept = useCallback(async () => {
-    if (!incomingRequest) {
-      return;
-    }
+    if (!incomingRequest) return;
 
     setActionLoading(true);
 
@@ -698,13 +716,17 @@ export default function ProfilePage() {
       await acceptFollowRequest(
         incomingRequest.follower_id
       );
+
       setIncomingRequest(null);
       showNotice('Follow request accepted.');
-      await loadCounts(profile.id);
-    } catch (acceptError) {
+
+      if (profile?.id) {
+        await loadCounts(profile.id);
+      }
+    } catch (requestError) {
       showNotice(
-        acceptError.message ||
-          'Unable to accept follow request.'
+        requestError?.message ||
+          'Unable to accept request.'
       );
     } finally {
       setActionLoading(false);
@@ -717,9 +739,7 @@ export default function ProfilePage() {
   ]);
 
   const handleReject = useCallback(async () => {
-    if (!incomingRequest) {
-      return;
-    }
+    if (!incomingRequest) return;
 
     setActionLoading(true);
 
@@ -727,71 +747,75 @@ export default function ProfilePage() {
       await rejectFollowRequest(
         incomingRequest.follower_id
       );
+
       setIncomingRequest(null);
       showNotice('Follow request rejected.');
-    } catch (rejectError) {
+    } catch (requestError) {
       showNotice(
-        rejectError.message ||
-          'Unable to reject follow request.'
+        requestError?.message ||
+          'Unable to reject request.'
       );
     } finally {
       setActionLoading(false);
     }
   }, [incomingRequest, showNotice]);
 
-  const openFollowers = async () => {
-    navigate(`/followers/${profile.id}`);
-  };
-
-  const openFollowing = async () => {
-    navigate(`/following/${profile.id}`);
-  };
-
-  const openMutualFollowers = async () => {
-    if (!user || !profile) {
+  const handleShare = useCallback(async () => {
+    if (
+      !isBrowser() ||
+      !profileUsername
+    ) {
       return;
     }
 
-    try {
-      const result = await getMutualFollowers(
-        user.id,
-        profile.id
-      );
-
-      setPeople(result);
-      setPeopleSheet('Mutual Followers');
-    } catch (mutualError) {
-      showNotice(
-        mutualError.message ||
-          'Unable to load mutual followers.'
-      );
-    }
-  };
-
-  const shareProfile = async () => {
     const url = `${window.location.origin}/profile/${profileUsername}`;
 
     try {
-      if (navigator.share) {
+      if (typeof navigator.share === 'function') {
         await navigator.share({
           title: displayName,
           text: `View ${displayName}'s Aarush profile.`,
           url,
         });
-      } else {
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
         showNotice('Profile link copied.');
+        return;
       }
+
+      showNotice(url);
     } catch {
       showNotice('Profile sharing cancelled.');
     }
-  };
+  }, [
+    displayName,
+    profileUsername,
+    showNotice,
+  ]);
+
+  const openPeople = useCallback(
+    (type) => {
+      if (!profile?.id) return;
+      navigate(`/${type}/${profile.id}`);
+    },
+    [navigate, profile?.id]
+  );
+
+  const topBar = (
+    <TopBar
+      profileMode
+      username={`@${profileUsername || 'username'}`}
+    />
+  );
 
   if (loading) {
     return (
       <div style={styles.page}>
-        <TopBar pageTitle="Profile" />
-        <main style={styles.loading}>
+        {topBar}
+        <main style={styles.center}>
           Loading profile…
         </main>
         <BottomNav />
@@ -799,18 +823,19 @@ export default function ProfilePage() {
     );
   }
 
-  if (error) {
+  if (error || !profile) {
     return (
       <div style={styles.page}>
-        <TopBar pageTitle="Profile" />
-        <main style={styles.error}>
+        {topBar}
+        <main style={styles.center}>
           <ShieldCheck size={30} />
           <h1>Unable to load profile</h1>
-          <p>{error}</p>
+          <p>{error || 'Profile unavailable.'}</p>
+
           <button
             type="button"
             onClick={loadProfile}
-            style={styles.primaryAction}
+            style={styles.primaryButton}
           >
             Retry
           </button>
@@ -822,17 +847,13 @@ export default function ProfilePage() {
 
   return (
     <div style={styles.page}>
-      <TopBar
-        pageTitle={displayName}
-        profileMode
-        username={`@${profileUsername}`}
-      />
+      {topBar}
 
       <main style={styles.content}>
         {guest ? (
-          <div style={styles.guestNotice}>
-            <UserRound size={16} />
-            Guest Mode · Sign in to follow profiles.
+          <div style={styles.notice}>
+            <UserRound size={15} />
+            Guest Mode · Sign in to use protected actions.
           </div>
         ) : null}
 
@@ -842,15 +863,17 @@ export default function ProfilePage() {
           </div>
         ) : null}
 
-        <section style={styles.profileCard}>
-          <div style={styles.profileTop}>
+        <section style={styles.card}>
+          <div style={styles.profileRow}>
             <Avatar profile={profile} />
 
             <div style={styles.identity}>
               <div style={styles.usernameRow}>
-                <strong>@{profileUsername}</strong>
+                <strong>
+                  @{profileUsername || 'user'}
+                </strong>
 
-                {profile?.verified ? (
+                {profile.verified ? (
                   <BadgeCheck
                     size={16}
                     color="#72e3ff"
@@ -863,122 +886,105 @@ export default function ProfilePage() {
               </span>
 
               <span style={styles.accountType}>
-                {profile?.account_type || 'Personal'}
+                {profile.account_type || 'Personal'}
               </span>
 
               <p style={styles.bio}>
-                {profile?.bio || 'No bio yet.'}
+                {profile.bio || 'No bio yet.'}
               </p>
 
-              <div style={styles.metaList}>
+              <div style={styles.meta}>
                 <span>
                   <Link2 size={13} />
-                  {profile?.website || 'Add your website'}
+                  {profile.website || 'No website'}
                 </span>
 
                 <span>
                   <MapPin size={13} />
-                  {profile?.location || 'Location not set'}
+                  {profile.location || 'No location'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div style={styles.statusRow}>
-            <span
-              style={{
-                ...styles.visibilityBadge,
-                ...(isPrivate
-                  ? styles.privateBadge
-                  : styles.publicBadge),
-              }}
-            >
-              {isPrivate ? (
-                <EyeOff size={12} />
-              ) : (
-                <Eye size={12} />
-              )}
-              {isPrivate
-                ? 'Private profile'
-                : 'Public profile'}
-            </span>
-
-            {mutualFollowers.length > 0 ? (
-              <button
-                type="button"
-                onClick={openMutualFollowers}
-                style={styles.mutualButton}
-              >
-                {mutualFollowers.length} mutual
-              </button>
-            ) : null}
+          <div style={styles.visibility}>
+            {profile.is_private ? (
+              <EyeOff size={13} />
+            ) : (
+              <Eye size={13} />
+            )}
+            {profile.is_private
+              ? 'Private profile'
+              : 'Public profile'}
           </div>
 
-          <div style={styles.statsGrid}>
+          {mutualFollowers.length ? (
+            <button
+              type="button"
+              onClick={() => setPeopleSheetOpen(true)}
+              style={styles.mutualButton}
+            >
+              {mutualFollowers.length} mutual followers
+            </button>
+          ) : null}
+
+          <div style={styles.stats}>
             <ProfileStat
               label="Posts"
               value={postsCount}
-              onClick={() =>
-                navigate(`/profile/${profileUsername}`)
-              }
             />
 
             <ProfileStat
               label="Followers"
               value={followersCount}
-              onClick={openFollowers}
+              onClick={() => openPeople('followers')}
             />
 
             <ProfileStat
               label="Following"
               value={followingCount}
-              onClick={openFollowing}
+              onClick={() => openPeople('following')}
             />
 
             <ProfileStat
               label="Stories"
               value={storiesCount}
-              onClick={() =>
-                showNotice('Stories opened.')
-              }
             />
 
             <ProfileStat
               label="Highlights"
               value={highlightsCount}
-              onClick={() =>
-                showNotice('Highlights opened.')
-              }
             />
           </div>
 
-          <div style={styles.actionRow}>
-            {isOwnProfile ? (
+          <div style={styles.actions}>
+            {ownProfile ? (
               <button
                 type="button"
                 onClick={() =>
                   navigate('/profile-settings')
                 }
-                style={styles.primaryAction}
+                style={styles.primaryButton}
               >
                 <Edit3 size={15} />
                 Edit Profile
               </button>
             ) : (
-              <RelationshipButton
-                relationship={relationship}
-                incomingRequest={incomingRequest}
-                loading={actionLoading}
+              <RelationshipActions
+                ownProfile={ownProfile}
                 guest={guest}
+                relationship={relationship}
+                request={incomingRequest}
+                loading={actionLoading}
                 onFollow={handleFollow}
                 onUnfollow={handleUnfollow}
                 onAccept={handleAccept}
                 onReject={handleReject}
-                onSignIn={() => navigate('/login')}
+                onLogin={() => navigate('/login')}
               />
             )}
 
-            {!isOwnProfile ? (
+            {!ownProfile ? (
               <button
                 type="button"
                 onClick={() => {
@@ -991,7 +997,7 @@ export default function ProfilePage() {
 
                   navigate(`/chat/${profile.id}`);
                 }}
-                style={styles.secondaryAction}
+                style={styles.secondaryButton}
               >
                 <MessageCircle size={15} />
                 Message
@@ -1000,30 +1006,18 @@ export default function ProfilePage() {
 
             <button
               type="button"
-              onClick={shareProfile}
-              style={styles.iconAction}
+              onClick={handleShare}
               aria-label="Share profile"
+              style={styles.iconAction}
             >
               <Share2 size={16} />
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => navigate('/discover')}
-            style={styles.discoverButton}
-          >
-            <Search size={15} />
-            Discover People
-            <ChevronRight size={15} />
-          </button>
         </section>
 
-        <section style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <span style={styles.sectionIcon}>
-              <Users size={16} />
-            </span>
+        <section style={styles.card}>
+          <div style={styles.sectionHeading}>
+            <Users size={17} />
 
             <div>
               <h2 style={styles.sectionTitle}>
@@ -1035,50 +1029,39 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div style={styles.connectionGrid}>
-            <button
-              type="button"
-              onClick={openFollowers}
-              style={styles.connectionButton}
-            >
-              <Users size={15} />
-              Followers
-              <ChevronRight size={15} />
-            </button>
+          <button
+            type="button"
+            onClick={() => openPeople('followers')}
+            style={styles.connectionButton}
+          >
+            Followers
+            <ChevronRight size={15} />
+          </button>
 
-            <button
-              type="button"
-              onClick={openFollowing}
-              style={styles.connectionButton}
-            >
-              <Users size={15} />
-              Following
-              <ChevronRight size={15} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/discover')}
-              style={styles.connectionButton}
-            >
-              <UserPlus size={15} />
-              Discover People
-              <ChevronRight size={15} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => openPeople('following')}
+            style={styles.connectionButton}
+          >
+            Following
+            <ChevronRight size={15} />
+          </button>
         </section>
       </main>
 
       <BottomNav />
 
-      {peopleSheet ? (
-        <PeopleSheet
-          title={peopleSheet}
-          people={people}
-          onClose={() => setPeopleSheet(null)}
+      {peopleSheetOpen ? (
+        <MutualFollowersSheet
+          people={mutualFollowers}
+          onClose={() => setPeopleSheetOpen(false)}
           onOpen={(person) => {
-            setPeopleSheet(null);
-            navigate(`/profile/${person.username}`);
+            setPeopleSheetOpen(false);
+            navigate(
+              `/profile/${normalizeUsername(
+                person.username
+              )}`
+            );
           }}
         />
       ) : null}
@@ -1092,19 +1075,19 @@ const styles = {
     paddingBottom: '6.8rem',
     color: '#f4f7ff',
     background:
-      'radial-gradient(circle at top, rgba(34,43,68,.45), #07090e 65%)',
+      'radial-gradient(circle at top,rgba(34,43,68,.45),#07090e 65%)',
   },
 
   content: {
     width: '100%',
     maxWidth: '900px',
     margin: '0 auto',
-    padding: '0.9rem',
+    padding: '.9rem',
     display: 'grid',
-    gap: '0.85rem',
+    gap: '.85rem',
   },
 
-  profileCard: {
+  card: {
     padding: '1rem',
     border: '1px solid rgba(255,255,255,.08)',
     borderRadius: '1.35rem',
@@ -1112,10 +1095,10 @@ const styles = {
     boxShadow: '0 20px 60px rgba(0,0,0,.28)',
   },
 
-  profileTop: {
+  profileRow: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '0.9rem',
+    gap: '.9rem',
   },
 
   avatar: {
@@ -1145,97 +1128,79 @@ const styles = {
   usernameRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.3rem',
+    gap: '.3rem',
+    fontSize: '1rem',
   },
 
   fullName: {
     display: 'block',
-    marginTop: '0.2rem',
+    marginTop: '.2rem',
     color: '#cbd6ec',
-    fontSize: '0.82rem',
-    fontWeight: 750,
+    fontSize: '.82rem',
   },
 
   accountType: {
     display: 'inline-block',
-    marginTop: '0.35rem',
-    padding: '0.2rem 0.4rem',
+    marginTop: '.35rem',
+    padding: '.2rem .4rem',
     borderRadius: '999px',
     color: '#9deeff',
     background: 'rgba(77,215,255,.1)',
-    fontSize: '0.58rem',
+    fontSize: '.58rem',
     fontWeight: 800,
   },
 
   bio: {
-    margin: '0.45rem 0 0',
+    margin: '.45rem 0 0',
     color: '#d5def1',
-    fontSize: '0.77rem',
+    fontSize: '.77rem',
     lineHeight: 1.5,
   },
 
-  metaList: {
+  meta: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: '0.45rem',
-    marginTop: '0.45rem',
+    gap: '.45rem',
+    marginTop: '.45rem',
     color: '#91a0bc',
-    fontSize: '0.65rem',
-    fontWeight: 700,
+    fontSize: '.65rem',
   },
 
-  statusRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.4rem',
-    marginTop: '0.85rem',
-  },
-
-  visibilityBadge: {
+  visibility: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '0.25rem',
-    padding: '0.3rem 0.45rem',
+    gap: '.3rem',
+    marginTop: '.85rem',
+    padding: '.3rem .5rem',
     borderRadius: '999px',
-    fontSize: '0.6rem',
-    fontWeight: 800,
-  },
-
-  publicBadge: {
     color: '#82e9c1',
-    background: 'rgba(130,233,193,.12)',
-  },
-
-  privateBadge: {
-    color: '#ffd27d',
-    background: 'rgba(255,210,125,.12)',
+    background: 'rgba(130,233,193,.1)',
+    fontSize: '.62rem',
+    fontWeight: 800,
   },
 
   mutualButton: {
-    padding: '0.3rem 0.45rem',
+    marginTop: '.5rem',
     border: 0,
-    borderRadius: '999px',
     color: '#9deeff',
-    background: 'rgba(77,215,255,.1)',
-    fontSize: '0.6rem',
-    fontWeight: 800,
+    background: 'transparent',
+    fontSize: '.65rem',
     cursor: 'pointer',
   },
 
-  statsGrid: {
+  stats: {
     display: 'grid',
-    gridTemplateColumns:
-      'repeat(5, minmax(0, 1fr))',
-    gap: '0.25rem',
+    gridTemplateColumns: 'repeat(5,minmax(0,1fr))',
+    gap: '.25rem',
     marginTop: '1rem',
-    paddingTop: '0.85rem',
+    paddingTop: '.85rem',
     borderTop: '1px solid rgba(255,255,255,.07)',
   },
 
   statButton: {
     display: 'grid',
-    gap: '0.18rem',
-    padding: '0.2rem',
+    gap: '.18rem',
+    padding: '.2rem',
     border: 0,
     color: '#f4f7ff',
     background: 'transparent',
@@ -1243,72 +1208,70 @@ const styles = {
     cursor: 'pointer',
   },
 
-  actionRow: {
+  actions: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: '0.45rem',
-    marginTop: '0.9rem',
+    gap: '.45rem',
+    marginTop: '.9rem',
   },
 
-  primaryAction: {
+  primaryButton: {
     minHeight: '2.65rem',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '0.35rem',
+    gap: '.35rem',
     flex: '1 1 9rem',
     border: 0,
     borderRadius: '999px',
     color: '#fff',
     background:
       'linear-gradient(135deg,#7c5cff,#4dd7ff)',
-    fontSize: '0.7rem',
+    fontSize: '.7rem',
     fontWeight: 850,
     cursor: 'pointer',
   },
 
-  secondaryAction: {
+  secondaryButton: {
     minHeight: '2.65rem',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '0.35rem',
+    gap: '.35rem',
     flex: '1 1 8rem',
     border: '1px solid rgba(124,92,255,.25)',
     borderRadius: '999px',
     color: '#eaf0ff',
     background: 'rgba(124,92,255,.1)',
-    fontSize: '0.7rem',
+    fontSize: '.7rem',
     fontWeight: 850,
     cursor: 'pointer',
   },
 
-  followingAction: {
+  followingButton: {
     minHeight: '2.65rem',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.35rem',
     flex: '1 1 9rem',
     border: '1px solid rgba(130,233,193,.25)',
     borderRadius: '999px',
     color: '#82e9c1',
     background: 'rgba(130,233,193,.1)',
-    fontSize: '0.7rem',
-    fontWeight: 850,
     cursor: 'pointer',
   },
 
-  requestedAction: {
+  requestedButton: {
     minHeight: '2.65rem',
     flex: '1 1 9rem',
     border: '1px solid rgba(255,210,125,.25)',
     borderRadius: '999px',
     color: '#ffd27d',
     background: 'rgba(255,210,125,.08)',
-    fontSize: '0.7rem',
-    fontWeight: 850,
     cursor: 'pointer',
+  },
+
+  requestActions: {
+    display: 'flex',
+    gap: '.4rem',
+    flex: '1 1 15rem',
   },
 
   iconAction: {
@@ -1323,118 +1286,61 @@ const styles = {
     cursor: 'pointer',
   },
 
-  requestActions: {
-    display: 'flex',
-    gap: '0.4rem',
-    flex: '1 1 15rem',
-  },
-
-  discoverButton: {
-    width: '100%',
-    minHeight: '2.55rem',
+  notice: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.35rem',
-    marginTop: '0.55rem',
-    border: '1px solid rgba(124,92,255,.22)',
-    borderRadius: '0.8rem',
-    color: '#c8bcff',
-    background: 'rgba(124,92,255,.08)',
-    fontSize: '0.68rem',
-    fontWeight: 800,
-    cursor: 'pointer',
+    gap: '.4rem',
+    padding: '.7rem',
+    border: '1px solid rgba(77,215,255,.18)',
+    borderRadius: '.8rem',
+    color: '#b8f4ff',
+    background: 'rgba(77,215,255,.07)',
+    fontSize: '.68rem',
   },
 
-  section: {
-    padding: '1rem',
-    border: '1px solid rgba(255,255,255,.08)',
-    borderRadius: '1.25rem',
-    background: 'rgba(15,19,30,.9)',
-  },
-
-  sectionHeader: {
+  sectionHeading: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.55rem',
-    marginBottom: '0.75rem',
-  },
-
-  sectionIcon: {
-    width: '2.1rem',
-    height: '2.1rem',
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: '0.7rem',
+    gap: '.55rem',
     color: '#dce8ff',
-    background:
-      'linear-gradient(135deg,rgba(124,92,255,.24),rgba(77,215,255,.12))',
   },
 
   sectionTitle: {
     margin: 0,
-    fontSize: '0.9rem',
+    fontSize: '.9rem',
   },
 
   sectionSubtitle: {
-    margin: '0.2rem 0 0',
+    margin: '.2rem 0 0',
     color: '#96a3bf',
-    fontSize: '0.66rem',
-  },
-
-  connectionGrid: {
-    display: 'grid',
-    gap: '0.45rem',
+    fontSize: '.66rem',
   },
 
   connectionButton: {
+    width: '100%',
     minHeight: '2.55rem',
     display: 'flex',
     alignItems: 'center',
-    gap: '0.35rem',
-    padding: '0 0.65rem',
+    justifyContent: 'space-between',
+    marginTop: '.45rem',
+    padding: '0 .65rem',
     border: '1px solid rgba(124,92,255,.18)',
-    borderRadius: '0.8rem',
+    borderRadius: '.8rem',
     color: '#dce5f8',
     background: 'rgba(124,92,255,.07)',
-    fontSize: '0.68rem',
+    fontSize: '.68rem',
     fontWeight: 800,
     cursor: 'pointer',
   },
 
-  guestNotice: {
-    padding: '0.7rem',
-    border: '1px solid rgba(255,210,125,.2)',
-    borderRadius: '0.8rem',
-    color: '#ffd27d',
-    background: 'rgba(255,210,125,.08)',
-    fontSize: '0.68rem',
-  },
-
-  notice: {
-    padding: '0.7rem',
-    border: '1px solid rgba(77,215,255,.18)',
-    borderRadius: '0.8rem',
-    color: '#b8f4ff',
-    background: 'rgba(77,215,255,.07)',
-    fontSize: '0.68rem',
-  },
-
-  loading: {
-    minHeight: '60vh',
-    display: 'grid',
-    placeItems: 'center',
-    color: '#9deeff',
-  },
-
-  error: {
+  center: {
     minHeight: '60vh',
     display: 'grid',
     placeItems: 'center',
     alignContent: 'center',
-    gap: '0.5rem',
+    gap: '.5rem',
     padding: '1rem',
-    color: '#ffb1c8',
+    color: '#9deeff',
     textAlign: 'center',
   },
 
@@ -1445,53 +1351,43 @@ const styles = {
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    padding: '0.8rem',
+    padding: '.8rem',
     background: 'rgba(2,5,10,.7)',
     backdropFilter: 'blur(10px)',
   },
 
   sheet: {
-    width: 'min(100%, 540px)',
+    width: 'min(100%,540px)',
     maxHeight: '75vh',
     overflowY: 'auto',
-    padding: '0.9rem',
-    borderRadius: '1.3rem 1.3rem 1rem 1rem',
+    padding: '.9rem',
     border: '1px solid rgba(255,255,255,.1)',
-    background: 'linear-gradient(180deg,#171d2d,#0e1320)',
+    borderRadius: '1.3rem',
+    background:
+      'linear-gradient(180deg,#171d2d,#0e1320)',
   },
 
   sheetHeader: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: '0.7rem',
-  },
-
-  closeButton: {
-    width: '2.2rem',
-    height: '2.2rem',
-    display: 'grid',
-    placeItems: 'center',
-    border: '1px solid rgba(255,255,255,.08)',
-    borderRadius: '999px',
-    color: '#fff',
-    background: 'rgba(255,255,255,.05)',
-    cursor: 'pointer',
+    marginBottom: '.7rem',
+    color: '#f4f7ff',
   },
 
   peopleList: {
     display: 'grid',
-    gap: '0.45rem',
+    gap: '.45rem',
   },
 
   personRow: {
     width: '100%',
     display: 'flex',
     alignItems: 'center',
-    gap: '0.55rem',
-    padding: '0.6rem',
+    gap: '.55rem',
+    padding: '.6rem',
     border: '1px solid rgba(255,255,255,.07)',
-    borderRadius: '0.8rem',
+    borderRadius: '.8rem',
     color: '#fff',
     background: 'rgba(255,255,255,.04)',
     textAlign: 'left',
@@ -1501,15 +1397,12 @@ const styles = {
   personCopy: {
     minWidth: 0,
     display: 'grid',
-    gap: '0.15rem',
+    gap: '.15rem',
     flex: 1,
   },
 
-  emptyPeople: {
-    display: 'grid',
-    justifyItems: 'center',
-    gap: '0.45rem',
-    padding: '2rem',
+  emptyText: {
     color: '#96a3bf',
+    textAlign: 'center',
   },
 };
