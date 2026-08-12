@@ -1261,7 +1261,6 @@ const styles = {
   },
 };
 
-// PART 4 END// PART 5 START
 
 function ProfileMenuDrawer({
   open,
