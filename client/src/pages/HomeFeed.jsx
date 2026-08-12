@@ -32,10 +32,6 @@ import { supabase } from '../lib/supabase';
 
 const PAGE_SIZE = 10;
 
-const GUEST_KEYS = {
-  isGuest: 'aarush_is_guest',
-  guestSession: 'aarush_guest_session',
-};
 
 const FALLBACK_STORIES = [
   {
@@ -61,12 +57,6 @@ const FALLBACK_STORIES = [
   },
 ];
 
-function isGuestMode() {
-  return (
-    window.localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
-    window.localStorage.getItem(GUEST_KEYS.guestSession) !== null
-  );
-}
 
 function SkeletonPost() {
   return (
@@ -91,14 +81,9 @@ function SkeletonPost() {
   );
 }
 
-function StoryRail({ guest, onRestrictedAction, onCreate }) {
+function StoryRail({ onRestrictedAction, onCreate }) {
   const handleStoryClick = (story) => {
-    if (story.own && guest) {
-      onRestrictedAction(
-        'Sign in to create and manage stories.'
-      );
-      return;
-    }
+    
 
     if (story.own) {
       onCreate();
@@ -254,7 +239,7 @@ export default function HomeFeed() {
   const refreshStartRef = useRef(null);
 
   const [user, setUser] = useState(null);
-  const [guest, setGuest] = useState(false);
+  // guest mode removed
   const [posts, setPosts] = useState([]);
   const [activeFilter, setActiveFilter] =
     useState('for_you');
@@ -277,27 +262,18 @@ export default function HomeFeed() {
   }, []);
 
   const loadAuthenticatedUser = useCallback(async () => {
-    const guestMode = isGuestMode();
+  const {
+    data: { user: currentUser },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-    setGuest(guestMode);
+  if (userError) {
+    throw userError;
+  }
 
-    if (guestMode) {
-      setUser(null);
-      return null;
-    }
-
-    const {
-      data: { user: currentUser },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      throw userError;
-    }
-
-    setUser(currentUser || null);
-    return currentUser || null;
-  }, []);
+  setUser(currentUser || null);
+  return currentUser || null;
+}, []);
 
   const loadPage = useCallback(
     async ({
@@ -649,10 +625,9 @@ export default function HomeFeed() {
         ) : null}
 
         <StoryRail
-          guest={guest}
-          onRestrictedAction={handleRestrictedAction}
-          onCreate={() => navigate('/upload')}
-        />
+  onRestrictedAction={handleRestrictedAction}
+  onCreate={() => navigate('/upload')}
+/>
 
         <div style={styles.filterBar}>
           <FeedFilter
@@ -738,9 +713,9 @@ export default function HomeFeed() {
                 </h1>
 
                 <p style={styles.feedSubtitle}>
-                  {guest
-                    ? 'Explore the Aarush community.'
-                    : 'Fresh posts from your Aarush community.'}
+                  'Fresh posts from your Aarush community.'
+                    
+                    
                 </p>
               </div>
 
