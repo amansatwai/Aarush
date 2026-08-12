@@ -1,11 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import {
   NavLink,
   useLocation,
   useNavigate,
 } from 'react-router-dom';
 import {
-  Bell,
   Clapperboard,
   Home,
   Lock,
@@ -49,16 +48,6 @@ const NAVIGATION_ITEMS = [
     badgeType: 'message',
     matches: ['/chats', '/chat'],
   },
-  {
-    to: '/notification-center',
-    label: 'Notifications',
-    Icon: Bell,
-    badgeType: 'notification',
-    matches: [
-      '/notification-center',
-      '/notifications',
-    ],
-  },
 ];
 
 function routeMatches(pathname, item) {
@@ -77,25 +66,13 @@ function routeMatches(pathname, item) {
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  const {
-    unreadMessageCount,
-    unreadNotificationCount,
-  } = useNotificationBadge();
+  const { unreadMessageCount } =
+    useNotificationBadge();
 
   const lastNavigationRef = useRef({
     path: '',
     time: 0,
   });
-
-  useEffect(() => {
-    return () => {
-      lastNavigationRef.current = {
-        path: '',
-        time: 0,
-      };
-    };
-  }, []);
 
   const navigateSafely = (path) => {
     if (!path || location.pathname === path) {
@@ -125,18 +102,6 @@ export default function BottomNav() {
     navigateSafely(path);
   };
 
-  const getBadgeCount = (badgeType) => {
-    if (badgeType === 'message') {
-      return unreadMessageCount;
-    }
-
-    if (badgeType === 'notification') {
-      return unreadNotificationCount;
-    }
-
-    return 0;
-  };
-
   return (
     <nav
       className="bottom-nav"
@@ -148,14 +113,13 @@ export default function BottomNav() {
           ({ to, label, Icon, badgeType, matches }) => {
             const active = routeMatches(
               location.pathname,
-              {
-                to,
-                matches,
-              }
+              { matches }
             );
 
             const badgeCount =
-              getBadgeCount(badgeType);
+              badgeType === 'message'
+                ? Number(unreadMessageCount) || 0
+                : 0;
 
             return (
               <NavLink
@@ -217,9 +181,7 @@ export default function BottomNav() {
                 <span style={styles.navigationLabel}>
                   {label === 'One Tap Lock'
                     ? 'Lock'
-                    : label === 'Notifications'
-                      ? 'Alerts'
-                      : label}
+                    : label}
                 </span>
               </NavLink>
             );
@@ -247,8 +209,7 @@ export default function BottomNav() {
           transform: scale(0.97);
         }
 
-        .bottom-nav-link:focus-visible,
-        .bottom-nav button:focus-visible {
+        .bottom-nav-link:focus-visible {
           outline: 2px solid #4dd7ff;
           outline-offset: 2px;
         }
@@ -319,7 +280,7 @@ const styles = {
     margin: '0 auto',
     display: 'grid',
     gridTemplateColumns:
-      'repeat(6, minmax(0, 1fr))',
+      'repeat(5, minmax(0, 1fr))',
     gap: '0.3rem',
     alignItems: 'stretch',
   },
