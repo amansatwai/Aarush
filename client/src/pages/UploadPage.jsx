@@ -39,18 +39,6 @@ const VIDEO_TYPES = [
   'video/webm',
 ];
 
-const GUEST_KEYS = {
-  isGuest: 'aarush_is_guest',
-  guestSession: 'aarush_guest_session',
-};
-
-function isGuestMode() {
-  return (
-    window.localStorage.getItem(GUEST_KEYS.isGuest) === 'true' &&
-    window.localStorage.getItem(GUEST_KEYS.guestSession) !== null
-  );
-}
-
 function formatFileSize(bytes) {
   if (!bytes) {
     return '0 KB';
@@ -166,7 +154,8 @@ export default function UploadPage() {
   const cancelRef = useRef(false);
   const previewUrlRef = useRef('');
 
-  const [guest] = useState(() => isGuestMode());
+  // Guest mode removed
+const guest = false;
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [caption, setCaption] = useState('');
@@ -217,12 +206,7 @@ export default function UploadPage() {
 
   const selectFile = useCallback(
     (selectedFile) => {
-      if (guest) {
-        setError(
-          'Posting is not available in Guest Mode. Sign in to upload content.'
-        );
-        return;
-      }
+      
 
       const validationError = validateFile(selectedFile);
 
@@ -294,12 +278,7 @@ export default function UploadPage() {
     async (event) => {
       event.preventDefault();
 
-      if (guest) {
-        setError(
-          'Posting is not available in Guest Mode. Sign in to upload content.'
-        );
-        return;
-      }
+      
 
       if (!file) {
         setError('Select an image or video before publishing.');
@@ -390,11 +369,10 @@ export default function UploadPage() {
   }, [file, handleUpload]);
 
   const canPublish =
-    Boolean(file) &&
-    Boolean(caption.trim()) &&
-    !uploading &&
-    !success &&
-    !guest;
+  Boolean(file) &&
+  Boolean(caption.trim()) &&
+  !uploading &&
+  !success;
 
   return (
     <div style={styles.page}>
@@ -405,15 +383,7 @@ export default function UploadPage() {
       />
 
       <main style={styles.content}>
-        {guest ? (
-          <div style={styles.guestNotice} role="status">
-            <AlertCircle size={17} />
-            <span>
-              Posting is not available in Guest Mode. Sign in to
-              upload content.
-            </span>
-          </div>
-        ) : null}
+        
 
         {error ? (
           <div role="alert" style={styles.errorNotice}>
