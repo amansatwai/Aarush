@@ -626,7 +626,7 @@ export default function HomeFeed() {
 
         <StoryRail
   onRestrictedAction={handleRestrictedAction}
-  onCreate={() => navigate('/upload')}
+  onCreate={() => navigate('/story-camera')}
 />
 
         <div style={styles.filterBar}>

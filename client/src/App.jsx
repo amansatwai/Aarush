@@ -25,7 +25,8 @@ import HomeFeed from './pages/HomeFeed';
 import ReelsPage from './pages/ReelsPage';
 import SearchPage from './pages/SearchPage';
 import UploadPage from './pages/UploadPage';
-
+import StoryCamera from './pages/StoryCamera';
+import StoryEditor from './pages/StoryEditor';
 import ProfilePage from './pages/ProfilePage';
 import ProfileSettings from './pages/ProfileSettings';
 import AccessibilitySettings from './pages/AccessibilitySettings';
@@ -433,7 +434,9 @@ function AppRoutes({ session, locked, onUnlock }) {
       {protectedRoute('/reels', <ReelsPage />)}
       {protectedRoute('/search', <SearchPage />)}
       {protectedRoute('/upload', <UploadPage />)}
-
+      {protectedRoute('/story-camera', <StoryCamera />)}
+      {protectedRoute('/story-editor', <StoryEditor />)}
+      
       {protectedRoute('/profile', <ProfilePage />)}
 
       {protectedRoute(

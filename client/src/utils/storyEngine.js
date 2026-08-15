@@ -1,410 +1,777 @@
 import { supabase } from '../lib/supabase';
 
-const STORY_BUCKET = 'stories';
 const STORY_TABLE = 'stories';
-const VIEW_TABLE = 'story_views';
-const CLOSE_FRIEND_TABLE = 'close_friends';
-const HIGHLIGHT_TABLE = 'story_highlights';
-const HIGHLIGHT_ITEM_TABLE = 'story_highlight_items';
+const STORY_VIEWS_TABLE = 'story_views';
+const STORY_REPLIES_TABLE = 'story_replies';
+const STORY_BUCKET = 'stories';
+const STORY_DURATION_MS = 24 * 60 * 60 * 1000;
 
-const PROFILE_FIELDS = `
-  id,
-  full_name,
-  username,
-  avatar_url,
-  profession
-`;
+const IMAGE_TYPES = Object.freeze([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+]);
 
-function getExtension(file) {
-  const extension = file.name
-    ?.split('.')
-    .pop()
-    ?.toLowerCase();
+const VIDEO_TYPES = Object.freeze([
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+]);
 
-  if (extension) {
-    return extension;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+
+const musicKeys = [
+  'song_id',
+  'song_title',
+  'artist',
+  'album',
+  'audio_url',
+  'song_start',
+  'song_end',
+  'video_start',
+  'video_end',
+  'fade_in',
+  'fade_out',
+  'music_volume',
+  'original_volume',
+  'beat_sync',
+  'waveform_data',
+];
+
+function createStoryError(
+  message,
+  code = 'STORY_ERROR',
+  details = null
+) {
+  const error = new Error(message);
+  error.code = code;
+  error.details = details;
+  return error;
+}
+
+function normalizeMediaType(type, file) {
+  const value = String(type || file?.type || '')
+    .toLowerCase();
+
+  if (value.startsWith('image/')) return 'image';
+  if (value.startsWith('video/')) return 'video';
+
+  return null;
+}
+
+function getFileExtension(file) {
+  const fileName = String(file?.name || '');
+  const extension = fileName.split('.').pop();
+
+  return extension
+    ? extension.toLowerCase().replace(/[^a-z0-9]/g, '')
+    : '';
+}
+
+function getMimeType(file, mediaType) {
+  if (file?.type) return file.type;
+
+  if (mediaType === 'image') {
+    return 'image/jpeg';
   }
 
-  return file.type === 'video/mp4' ? 'mp4' : 'jpg';
+  if (mediaType === 'video') {
+    return 'video/webm';
+  }
+
+  return 'application/octet-stream';
 }
 
-function getMediaType(file) {
-  return file.type?.startsWith('video/')
-    ? 'video'
-    : 'image';
+function getMaxFileSize(mediaType) {
+  return mediaType === 'video'
+    ? MAX_VIDEO_SIZE
+    : MAX_IMAGE_SIZE;
 }
 
-function normalizeStoryPrivacy(privacy) {
+function assertSupabase() {
+  if (!supabase) {
+    throw createStoryError(
+      'Supabase is unavailable.',
+      'SUPABASE_UNAVAILABLE'
+    );
+  }
+}
+
+function assertFile(file) {
+  if (!file) {
+    throw createStoryError(
+      'Story media is required.',
+      'MEDIA_MISSING'
+    );
+  }
+
+  if (
+    typeof file.arrayBuffer !== 'function' &&
+    typeof file.size !== 'number'
+  ) {
+    throw createStoryError(
+      'Invalid story media.',
+      'MEDIA_INVALID'
+    );
+  }
+}
+
+export function validateStoryMedia(file, mediaType) {
+  assertFile(file);
+
+  const normalizedType = normalizeMediaType(
+    mediaType,
+    file
+  );
+  const mimeType = getMimeType(file, normalizedType);
+  const extension = getFileExtension(file);
+  const validType =
+    normalizedType === 'image'
+      ? IMAGE_TYPES.includes(mimeType) ||
+        ['jpg', 'jpeg', 'png', 'webp'].includes(
+          extension
+        )
+      : normalizedType === 'video'
+        ? VIDEO_TYPES.includes(mimeType) ||
+          ['mp4', 'mov', 'webm'].includes(extension)
+        : false;
+
+  if (!normalizedType || !validType) {
+    throw createStoryError(
+      'Unsupported story media format.',
+      'MEDIA_UNSUPPORTED',
+      {
+        mimeType,
+        extension,
+        supportedImages: IMAGE_TYPES,
+        supportedVideos: VIDEO_TYPES,
+      }
+    );
+  }
+
+  const maxSize = getMaxFileSize(normalizedType);
+
+  if (Number(file.size) > maxSize) {
+    throw createStoryError(
+      normalizedType === 'video'
+        ? 'Video must be smaller than 100 MB.'
+        : 'Image must be smaller than 10 MB.',
+      'MEDIA_TOO_LARGE',
+      {
+        size: file.size,
+        maxSize,
+      }
+    );
+  }
+
+  return {
+    mediaType: normalizedType,
+    mimeType,
+    extension:
+      extension ||
+      (normalizedType === 'image' ? 'jpg' : 'webm'),
+    size: Number(file.size) || 0,
+  };
+}
+
+function normalizePrivacy(value) {
   const allowed = [
     'public',
     'followers',
     'close_friends',
+    'private',
     'only_me',
   ];
 
-  return allowed.includes(privacy) ? privacy : 'public';
+  return allowed.includes(value) ? value : 'public';
 }
 
-function groupStories(rows) {
-  const grouped = new Map();
+function normalizeArray(value) {
+  return Array.isArray(value)
+    ? value.filter(Boolean)
+    : [];
+}
 
-  for (const row of rows || []) {
-    const owner = row.profiles || {};
-    const ownerId = row.user_id;
+function normalizeMusicMetadata(music) {
+  const source =
+    music && typeof music === 'object' ? music : {};
 
-    if (!grouped.has(ownerId)) {
-      grouped.set(ownerId, {
-        id: ownerId,
-        user_id: ownerId,
-        username: owner.username || 'user',
-        displayName: owner.full_name || 'Aarush User',
-        avatar: owner.avatar_url || '',
-        profession: owner.profession || '',
-        stories: [],
-        seen: true,
-        latestCreatedAt: row.created_at,
-      });
+  return musicKeys.reduce((result, key) => {
+    if (source[key] !== undefined) {
+      result[key] = source[key];
     }
+    return result;
+  }, {});
+}
 
-    const group = grouped.get(ownerId);
-
-    group.stories.push({
-      id: row.id,
-      user_id: row.user_id,
-      media_url: row.media_url,
-      media_type: row.media_type,
-      caption: row.caption || '',
-      privacy: row.privacy,
-      expires_at: row.expires_at,
-      created_at: row.created_at,
-      viewed: Boolean(row.viewed),
-      viewed_at: row.viewed_at || null,
-    });
-
-    if (!row.viewed) {
-      group.seen = false;
-    }
-
-    if (
-      new Date(row.created_at) >
-      new Date(group.latestCreatedAt)
-    ) {
-      group.latestCreatedAt = row.created_at;
-    }
+function normalizeOverlayMetadata(overlays) {
+  if (!overlays || typeof overlays !== 'object') {
+    return {
+      text: [],
+      drawings: [],
+      stickers: [],
+      gifs: [],
+      polls: [],
+      mentions: [],
+      hashtags: [],
+      links: [],
+      locations: [],
+      emojis: [],
+    };
   }
 
-  return [...grouped.values()]
-    .map((group) => ({
-      ...group,
-      stories: group.stories.sort(
-        (first, second) =>
-          new Date(first.created_at) -
-          new Date(second.created_at)
-      ),
-    }))
-    .sort(
-      (first, second) =>
-        new Date(second.latestCreatedAt) -
-        new Date(first.latestCreatedAt)
-    );
+  return {
+    text: normalizeArray(
+      overlays.text || overlays.textLayers
+    ),
+    drawings: normalizeArray(
+      overlays.drawings || overlays.drawingLayers
+    ),
+    stickers: normalizeArray(overlays.stickers),
+    gifs: normalizeArray(overlays.gifs),
+    polls: normalizeArray(overlays.polls),
+    mentions: normalizeArray(overlays.mentions),
+    hashtags: normalizeArray(overlays.hashtags),
+    links: normalizeArray(overlays.links),
+    locations: normalizeArray(overlays.locations),
+    emojis: normalizeArray(overlays.emojis),
+  };
 }
 
-export async function getCurrentUser() {
+export function getStoryExpiry(createdAt = new Date()) {
+  const date = new Date(createdAt);
+  const validDate = Number.isNaN(date.getTime())
+    ? new Date()
+    : date;
+
+  return new Date(
+    validDate.getTime() + STORY_DURATION_MS
+  ).toISOString();
+}
+
+export function isStoryExpired(story) {
+  if (!story) return true;
+
+  const expiry = new Date(story.expires_at);
+
+  if (Number.isNaN(expiry.getTime())) {
+    return false;
+  }
+
+  return expiry.getTime() <= Date.now();
+}
+
+export function getRemainingStoryTime(story) {
+  if (!story) return 0;
+
+  const expiry = new Date(story.expires_at);
+
+  if (Number.isNaN(expiry.getTime())) {
+    return STORY_DURATION_MS;
+  }
+
+  return Math.max(0, expiry.getTime() - Date.now());
+}
+
+export function filterExpiredStories(stories) {
+  return normalizeArray(stories).filter(
+    (story) => !isStoryExpired(story)
+  );
+}
+
+export function prepareStoryPayload(input = {}) {
+  const source =
+    input && typeof input === 'object' ? input : {};
+
+  const media = source.media || {};
+  const createdAt =
+    source.created_at || new Date().toISOString();
+
+  return {
+    media_url:
+      source.media_url ||
+      media.publicUrl ||
+      media.url ||
+      null,
+    media_type:
+      source.media_type ||
+      media.mediaType ||
+      media.type ||
+      'image',
+    thumbnail_url:
+      source.thumbnail_url ||
+      media.thumbnailUrl ||
+      null,
+    caption: String(source.caption || '').trim(),
+    privacy: normalizePrivacy(source.privacy),
+    music_metadata: normalizeMusicMetadata(
+      source.music_metadata || source.music
+    ),
+    overlay_metadata: normalizeOverlayMetadata(
+      source.overlay_metadata || source.overlays
+    ),
+    location: source.location || null,
+    hashtags: normalizeArray(source.hashtags),
+    duration: Number(source.duration) || 0,
+    created_at: createdAt,
+    expires_at:
+      source.expires_at || getStoryExpiry(createdAt),
+    updated_at:
+      source.updated_at || new Date().toISOString(),
+  };
+}
+
+async function getCurrentUser() {
+  assertSupabase();
+
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
 
   if (error) {
-    throw error;
+    throw createStoryError(
+      error.message || 'Unable to read current user.',
+      'AUTH_ERROR',
+      error
+    );
   }
-
-  return user || null;
-}
-
-export async function uploadStory({
-  file,
-  caption = '',
-  privacy = 'public',
-  onProgress,
-}) {
-  const user = await getCurrentUser();
 
   if (!user) {
-    throw new Error('Sign in to upload a story.');
+    throw createStoryError(
+      'You must be signed in to create a story.',
+      'USER_MISSING'
+    );
   }
 
-  if (!file) {
-    throw new Error('Select an image or video first.');
-  }
+  return user;
+}
 
-  if (
-    !file.type?.startsWith('image/') &&
-    !file.type?.startsWith('video/')
-  ) {
-    throw new Error('Only image and video stories are supported.');
-  }
+function makeStoragePath(userId, file, mediaType) {
+  const extension =
+    getFileExtension(file) ||
+    (mediaType === 'image' ? 'jpg' : 'webm');
 
-  const extension = getExtension(file);
-  const randomPart = crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
+  const safeExtension = extension
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 
-  const filePath = `${user.id}/${Date.now()}-${randomPart}.${extension}`;
-  const mediaType = getMediaType(file);
+  return `${userId}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}.${safeExtension}`;
+}
 
-  onProgress?.(10);
+export async function uploadStoryMedia(
+  file,
+  options = {}
+) {
+  assertSupabase();
+  assertFile(file);
 
-  const { error: uploadError } = await supabase.storage
-    .from(STORY_BUCKET)
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      contentType: file.type,
-      upsert: false,
-    });
-
-  if (uploadError) {
-    throw uploadError;
-  }
-
-  onProgress?.(70);
-
-  const { data: publicUrlData } = supabase.storage
-    .from(STORY_BUCKET)
-    .getPublicUrl(filePath);
-
-  const mediaUrl = publicUrlData?.publicUrl;
-
-  if (!mediaUrl) {
-    throw new Error('Unable to create the story media URL.');
-  }
-
-  const createdAt = new Date();
-  const expiresAt = new Date(
-    createdAt.getTime() + 24 * 60 * 60 * 1000
+  const user = await getCurrentUser();
+  const validation = validateStoryMedia(
+    file,
+    options.mediaType
+  );
+  const path = makeStoragePath(
+    user.id,
+    file,
+    validation.mediaType
   );
 
-  const { data, error: insertError } = await supabase
-    .from(STORY_TABLE)
-    .insert({
-      user_id: user.id,
-      media_url: mediaUrl,
-      media_type: mediaType,
-      caption: caption.trim() || null,
-      privacy: normalizeStoryPrivacy(privacy),
-      created_at: createdAt.toISOString(),
-      expires_at: expiresAt.toISOString(),
-    })
-    .select()
-    .single();
+  const onProgress =
+    typeof options.onProgress === 'function'
+      ? options.onProgress
+      : null;
 
-  if (insertError) {
+  onProgress?.(0);
+
+  const { error: uploadError } =
     await supabase.storage
       .from(STORY_BUCKET)
-      .remove([filePath]);
+      .upload(path, file, {
+        cacheControl: '3600',
+        contentType: validation.mimeType,
+        upsert: false,
+      });
 
-    throw insertError;
+  if (uploadError) {
+    throw createStoryError(
+      uploadError.message ||
+        'Story media upload failed.',
+      'UPLOAD_FAILED',
+      uploadError
+    );
   }
 
-  onProgress?.(100);
+  onProgress?.(0.8);
+
+  const {
+    data: publicUrlData,
+  } = supabase.storage
+    .from(STORY_BUCKET)
+    .getPublicUrl(path);
+
+  const publicUrl = publicUrlData?.publicUrl || '';
+
+  if (!publicUrl) {
+    throw createStoryError(
+      'Story media URL could not be generated.',
+      'PUBLIC_URL_FAILED'
+    );
+  }
+
+  onProgress?.(1);
 
   return {
-    ...data,
-    storage_path: filePath,
+    path,
+    publicUrl,
+    mediaUrl: publicUrl,
+    mediaType: validation.mediaType,
+    mimeType: validation.mimeType,
+    size: validation.size,
+    thumbnailUrl: null,
+    metadata: {
+      bucket: STORY_BUCKET,
+      path,
+      name: file.name || null,
+      lastModified: file.lastModified || null,
+    },
   };
 }
 
-export async function getActiveStories({
-  viewerId = null,
-} = {}) {
-  const now = new Date().toISOString();
+export async function createStory(input = {}) {
+  assertSupabase();
 
-  let query = supabase
+  const user = await getCurrentUser();
+  const source =
+    input && typeof input === 'object' ? input : {};
+
+  let uploadedMedia = source.uploadedMedia;
+
+  if (
+    !uploadedMedia &&
+    source.file
+  ) {
+    uploadedMedia = await uploadStoryMedia(
+      source.file,
+      {
+        mediaType: source.mediaType,
+        onProgress: source.onProgress,
+      }
+    );
+  }
+
+  const payload = prepareStoryPayload({
+    ...source,
+    media: uploadedMedia || source.media,
+    media_url:
+      source.media_url || uploadedMedia?.publicUrl,
+    media_type:
+      source.media_type || uploadedMedia?.mediaType,
+    thumbnail_url:
+      source.thumbnail_url ||
+      uploadedMedia?.thumbnailUrl,
+  });
+
+  if (!payload.media_url) {
+    throw createStoryError(
+      'Uploaded story media is missing.',
+      'MEDIA_URL_MISSING'
+    );
+  }
+
+  const { data, error } = await supabase
     .from(STORY_TABLE)
-    .select(`
-      id,
-      user_id,
-      media_url,
-      media_type,
-      caption,
-      privacy,
-      expires_at,
-      created_at,
-      profiles!stories_user_id_fkey (${PROFILE_FIELDS})
-    `)
-    .gt('expires_at', now)
-    .order('created_at', {
-      ascending: false,
-    });
-
-  const { data: rows, error } = await query;
+    .insert({
+      ...payload,
+      user_id: user.id,
+    })
+    .select('*')
+    .single();
 
   if (error) {
-    throw error;
-  }
-
-  if (!rows?.length) {
-    return [];
-  }
-
-  let viewedIds = new Set();
-
-  if (viewerId) {
-    const storyIds = rows.map((story) => story.id);
-
-    const { data: views, error: viewsError } =
-      await supabase
-        .from(VIEW_TABLE)
-        .select('story_id, viewed_at')
-        .eq('viewer_id', viewerId)
-        .in('story_id', storyIds);
-
-    if (viewsError) {
-      throw viewsError;
-    }
-
-    viewedIds = new Set(
-      (views || []).map((view) => view.story_id)
+    throw createStoryError(
+      error.message || 'Story creation failed.',
+      'CREATE_FAILED',
+      error
     );
-
-    rows.forEach((story) => {
-      story.viewed = viewedIds.has(story.id);
-      story.viewed_at =
-        views?.find((view) => view.story_id === story.id)
-          ?.viewed_at || null;
-    });
   }
 
-  return groupStories(rows);
+  return data;
 }
 
-export async function getStoriesForUser(userId) {
+export async function getStoryFeed(options = {}) {
+  assertSupabase();
+
+  const user = await getCurrentUser();
+  const limit = Number(options.limit) || 100;
+
+  const { data, error } = await supabase
+    .from(STORY_TABLE)
+    .select(`
+      *,
+      profile:profiles(
+        id,
+        username,
+        full_name,
+        avatar_url
+      )
+    `)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(limit);
+
+  if (error) {
+    throw createStoryError(
+      error.message || 'Unable to load story feed.',
+      'FEED_FAILED',
+      error
+    );
+  }
+
+  const stories = filterExpiredStories(data || []);
+  const viewedIds = new Set(
+    normalizeArray(options.viewedStoryIds)
+  );
+
+  const grouped = new Map();
+
+  stories.forEach((story) => {
+    const userId = story.user_id;
+
+    if (!grouped.has(userId)) {
+      grouped.set(userId, {
+        user: story.profile || {
+          id: userId,
+        },
+        stories: [],
+        unread: true,
+        latestStory: story,
+      });
+    }
+
+    const group = grouped.get(userId);
+
+    group.stories.push(story);
+
+    if (
+      viewedIds.has(story.id) ||
+      story.viewed === true
+    ) {
+      group.unread = false;
+    }
+
+    if (
+      new Date(story.created_at).getTime() >
+      new Date(group.latestStory.created_at).getTime()
+    ) {
+      group.latestStory = story;
+    }
+  });
+
+  const result = [...grouped.values()];
+
+  result.forEach((group) => {
+    group.stories.sort(
+      (first, second) =>
+        new Date(first.created_at).getTime() -
+        new Date(second.created_at).getTime()
+    );
+  });
+
+  return result.sort(
+    (first, second) =>
+      new Date(second.latestStory.created_at).getTime() -
+      new Date(first.latestStory.created_at).getTime()
+  );
+}
+
+export async function getUserStories(userId) {
+  assertSupabase();
+
   if (!userId) {
-    return [];
+    throw createStoryError(
+      'A user id is required.',
+      'USER_ID_MISSING'
+    );
   }
 
   const { data, error } = await supabase
     .from(STORY_TABLE)
     .select(`
-      id,
-      user_id,
-      media_url,
-      media_type,
-      caption,
-      privacy,
-      expires_at,
-      created_at,
-      profiles!stories_user_id_fkey (${PROFILE_FIELDS})
+      *,
+      profile:profiles(
+        id,
+        username,
+        full_name,
+        avatar_url
+      )
     `)
     .eq('user_id', userId)
     .gt('expires_at', new Date().toISOString())
     .order('created_at', {
-      ascending: false,
+      ascending: true,
     });
 
   if (error) {
-    throw error;
+    throw createStoryError(
+      error.message || 'Unable to load user stories.',
+      'USER_STORIES_FAILED',
+      error
+    );
   }
 
-  return groupStories(data || []);
+  return filterExpiredStories(data || []);
 }
 
-export async function getArchivedStories(userId) {
-  if (!userId) {
-    return [];
+export async function getStoryById(storyId) {
+  assertSupabase();
+
+  if (!storyId) {
+    throw createStoryError(
+      'A story id is required.',
+      'STORY_ID_MISSING'
+    );
   }
 
   const { data, error } = await supabase
     .from(STORY_TABLE)
     .select(`
-      id,
-      user_id,
-      media_url,
-      media_type,
-      caption,
-      privacy,
-      expires_at,
-      created_at
+      *,
+      profile:profiles(
+        id,
+        username,
+        full_name,
+        avatar_url
+      )
     `)
-    .eq('user_id', userId)
-    .lte('expires_at', new Date().toISOString())
-    .order('created_at', {
-      ascending: false,
-    });
+    .eq('id', storyId)
+    .maybeSingle();
 
   if (error) {
-    throw error;
+    throw createStoryError(
+      error.message || 'Unable to load story.',
+      'STORY_FETCH_FAILED',
+      error
+    );
   }
 
-  return data || [];
+  if (!data || isStoryExpired(data)) {
+    return null;
+  }
+
+  return data;
 }
 
-export async function recordStoryView(storyId) {
+export function getStoryPreview(story) {
+  if (!story || isStoryExpired(story)) {
+    return null;
+  }
+
+  return {
+    id: story.id,
+    userId: story.user_id,
+    mediaUrl: story.media_url,
+    thumbnailUrl: story.thumbnail_url || story.media_url,
+    mediaType: story.media_type,
+    caption: story.caption || '',
+    createdAt: story.created_at,
+    expiresAt: story.expires_at,
+    remainingTime: getRemainingStoryTime(story),
+    privacy: story.privacy || 'public',
+    profile: story.profile || null,
+  };
+}
+
+export async function markStoryViewed(storyId) {
+  assertSupabase();
+
   const user = await getCurrentUser();
 
-  if (!user || !storyId) {
+  if (!storyId) {
+    throw createStoryError(
+      'A story id is required.',
+      'STORY_ID_MISSING'
+    );
+  }
+
+  const { data: existing } = await supabase
+    .from(STORY_VIEWS_TABLE)
+    .select('id')
+    .eq('story_id', storyId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
     return {
-      viewed: false,
-      guest: !user,
+      viewed: true,
+      duplicate: true,
+      view: existing,
     };
   }
 
-  const { error } = await supabase
-    .from(VIEW_TABLE)
-    .upsert(
-      {
-        story_id: storyId,
-        viewer_id: user.id,
-        viewed_at: new Date().toISOString(),
-      },
-      {
-        onConflict: 'story_id,viewer_id',
-        ignoreDuplicates: true,
-      }
-    );
+  const { data, error } = await supabase
+    .from(STORY_VIEWS_TABLE)
+    .insert({
+      story_id: storyId,
+      user_id: user.id,
+      viewed_at: new Date().toISOString(),
+    })
+    .select('*')
+    .single();
 
   if (error) {
-    throw error;
+    if (
+      error.code === '23505' ||
+      /duplicate|unique/i.test(error.message || '')
+    ) {
+      return {
+        viewed: true,
+        duplicate: true,
+      };
+    }
+
+    throw createStoryError(
+      error.message || 'Unable to mark story viewed.',
+      'VIEW_FAILED',
+      error
+    );
   }
 
   return {
     viewed: true,
-    guest: false,
+    duplicate: false,
+    view: data,
   };
 }
 
-export async function getStoryViewers(storyId) {
-  const user = await getCurrentUser();
+export async function getStoryViews(storyId) {
+  assertSupabase();
 
-  if (!user) {
-    throw new Error('Sign in to view story viewers.');
-  }
-
-  const { data: story, error: storyError } =
-    await supabase
-      .from(STORY_TABLE)
-      .select('user_id')
-      .eq('id', storyId)
-      .single();
-
-  if (storyError) {
-    throw storyError;
-  }
-
-  if (story.user_id !== user.id) {
-    throw new Error(
-      'Only the story owner can view story viewers.'
+  if (!storyId) {
+    throw createStoryError(
+      'A story id is required.',
+      'STORY_ID_MISSING'
     );
   }
 
   const { data, error } = await supabase
-    .from(VIEW_TABLE)
+    .from(STORY_VIEWS_TABLE)
     .select(`
       id,
-      viewer_id,
+      story_id,
+      user_id,
       viewed_at,
-      profiles!story_views_viewer_id_fkey (
-        ${PROFILE_FIELDS}
+      profile:profiles(
+        id,
+        username,
+        full_name,
+        avatar_url
       )
     `)
     .eq('story_id', storyId)
@@ -413,364 +780,109 @@ export async function getStoryViewers(storyId) {
     });
 
   if (error) {
-    throw error;
+    throw createStoryError(
+      error.message || 'Unable to load story views.',
+      'VIEWS_FAILED',
+      error
+    );
   }
 
-  return data || [];
+  return {
+    total: data?.length || 0,
+    views: data || [],
+    viewers: data || [],
+  };
 }
 
-export async function getStoryViewerCount(storyId) {
+export async function replyToStory(input = {}) {
+  assertSupabase();
+
+  const user = await getCurrentUser();
+  const storyId = input.storyId;
+
   if (!storyId) {
-    return 0;
+    throw createStoryError(
+      'A story id is required.',
+      'STORY_ID_MISSING'
+    );
   }
 
-  const { count, error } = await supabase
-    .from(VIEW_TABLE)
-    .select('id', {
-      count: 'exact',
-      head: true,
-    })
-    .eq('story_id', storyId);
+  const payload = {
+    story_id: storyId,
+    user_id: user.id,
+    text: String(input.text || '').trim() || null,
+    reaction: input.reaction || null,
+    media_url: input.mediaUrl || null,
+    media_type: input.mediaType || null,
+  };
 
-  if (error) {
-    throw error;
-  }
-
-  return count || 0;
-}
-
-export async function getCloseFriends(userId) {
-  if (!userId) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from(CLOSE_FRIEND_TABLE)
-    .select(`
-      id,
-      user_id,
-      friend_id,
-      created_at,
-      profiles!close_friends_friend_id_fkey (${PROFILE_FIELDS})
-    `)
-    .eq('user_id', userId)
-    .order('created_at', {
-      ascending: false,
-    });
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
-}
-
-export async function addCloseFriend(friendId) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to manage Close Friends.');
-  }
-
-  if (!friendId || friendId === user.id) {
-    throw new Error('Invalid Close Friend profile.');
-  }
-
-  const { data, error } = await supabase
-    .from(CLOSE_FRIEND_TABLE)
-    .upsert(
-      {
-        user_id: user.id,
-        friend_id: friendId,
-      },
-      {
-        onConflict: 'user_id,friend_id',
-      }
-    )
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-export async function removeCloseFriend(friendId) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to manage Close Friends.');
-  }
-
-  const { error } = await supabase
-    .from(CLOSE_FRIEND_TABLE)
-    .delete()
-    .eq('user_id', user.id)
-    .eq('friend_id', friendId);
-
-  if (error) {
-    throw error;
-  }
-
-  return true;
-}
-
-export async function createHighlight({
-  title,
-  coverUrl = null,
-}) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to create highlights.');
-  }
-
-  if (!title?.trim()) {
-    throw new Error('Highlight title is required.');
-  }
-
-  const { data, error } = await supabase
-    .from(HIGHLIGHT_TABLE)
-    .insert({
-      user_id: user.id,
-      title: title.trim(),
-      cover_url: coverUrl,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-export async function renameHighlight(
-  highlightId,
-  title
-) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to rename highlights.');
-  }
-
-  const { data, error } = await supabase
-    .from(HIGHLIGHT_TABLE)
-    .update({
-      title: title.trim(),
-    })
-    .eq('id', highlightId)
-    .eq('user_id', user.id)
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-export async function deleteHighlight(highlightId) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to delete highlights.');
-  }
-
-  const { error } = await supabase
-    .from(HIGHLIGHT_TABLE)
-    .delete()
-    .eq('id', highlightId)
-    .eq('user_id', user.id);
-
-  if (error) {
-    throw error;
-  }
-
-  return true;
-}
-
-export async function addStoryToHighlight(
-  highlightId,
-  storyId
-) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to manage highlights.');
-  }
-
-  const { data: highlight, error: highlightError } =
-    await supabase
-      .from(HIGHLIGHT_TABLE)
-      .select('id')
-      .eq('id', highlightId)
-      .eq('user_id', user.id)
-      .single();
-
-  if (highlightError) {
-    throw highlightError;
-  }
-
-  const { data: story, error: storyError } =
-    await supabase
-      .from(STORY_TABLE)
-      .select('id, user_id, expires_at')
-      .eq('id', storyId)
-      .single();
-
-  if (storyError) {
-    throw storyError;
-  }
-
-  if (story.user_id !== user.id) {
-    throw new Error(
-      'Only your own stories can be added to highlights.'
+  if (
+    !payload.text &&
+    !payload.reaction &&
+    !payload.media_url
+  ) {
+    throw createStoryError(
+      'A reply message, reaction, or media is required.',
+      'REPLY_EMPTY'
     );
   }
 
   const { data, error } = await supabase
-    .from(HIGHLIGHT_ITEM_TABLE)
-    .upsert(
-      {
-        highlight_id: highlight.id,
-        story_id: story.id,
-      },
-      {
-        onConflict: 'highlight_id,story_id',
-      }
-    )
-    .select()
+    .from(STORY_REPLIES_TABLE)
+    .insert(payload)
+    .select('*')
     .single();
 
   if (error) {
-    throw error;
+    throw createStoryError(
+      error.message || 'Unable to reply to story.',
+      'REPLY_FAILED',
+      error
+    );
   }
 
   return data;
 }
 
-export async function removeStoryFromHighlight(
-  highlightId,
-  storyId
-) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Error('Sign in to manage highlights.');
-  }
-
-  const { data: highlight, error: highlightError } =
-    await supabase
-      .from(HIGHLIGHT_TABLE)
-      .select('id')
-      .eq('id', highlightId)
-      .eq('user_id', user.id)
-      .single();
-
-  if (highlightError) {
-    throw highlightError;
-  }
-
-  const { error } = await supabase
-    .from(HIGHLIGHT_ITEM_TABLE)
-    .delete()
-    .eq('highlight_id', highlight.id)
-    .eq('story_id', storyId);
-
-  if (error) {
-    throw error;
-  }
-
-  return true;
-}
-
-export async function getProfileHighlights(userId) {
-  if (!userId) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from(HIGHLIGHT_TABLE)
-    .select(`
-      id,
-      user_id,
-      title,
-      cover_url,
-      created_at,
-      story_highlight_items (
-        id,
-        story_id,
-        stories (
-          id,
-          user_id,
-          media_url,
-          media_type,
-          caption,
-          privacy,
-          expires_at,
-          created_at
-        )
-      )
-    `)
-    .eq('user_id', userId)
-    .order('created_at', {
-      ascending: false,
-    });
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
-}
-
-export async function subscribeToStories(
-  callback
-) {
-  const channel = supabase
-    .channel('aarush-stories')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: STORY_TABLE,
-      },
-      callback
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}
-
 export async function deleteStory(storyId) {
+  assertSupabase();
+
   const user = await getCurrentUser();
+  const story = await getStoryById(storyId);
 
-  if (!user) {
-    throw new Error('Sign in to delete stories.');
-  }
-
-  const { data: story, error: storyError } =
-    await supabase
-      .from(STORY_TABLE)
-      .select('id, user_id, media_url')
-      .eq('id', storyId)
-      .single();
-
-  if (storyError) {
-    throw storyError;
+  if (!story) {
+    throw createStoryError(
+      'Story not found.',
+      'STORY_NOT_FOUND'
+    );
   }
 
   if (story.user_id !== user.id) {
-    throw new Error('Only the story owner can delete stories.');
+    throw createStoryError(
+      'You cannot delete this story.',
+      'PERMISSION_DENIED'
+    );
+  }
+
+  const storagePath =
+    story.storage_path ||
+    story.media_path ||
+    null;
+
+  if (storagePath) {
+    const { error: storageError } =
+      await supabase.storage
+        .from(STORY_BUCKET)
+        .remove([storagePath]);
+
+    if (storageError) {
+      throw createStoryError(
+        storageError.message ||
+          'Story media deletion failed.',
+        'STORAGE_DELETE_FAILED',
+        storageError
+      );
+    }
   }
 
   const { error } = await supabase
@@ -780,8 +892,168 @@ export async function deleteStory(storyId) {
     .eq('user_id', user.id);
 
   if (error) {
-    throw error;
+    throw createStoryError(
+      error.message || 'Story deletion failed.',
+      'DELETE_FAILED',
+      error
+    );
   }
 
-  return true;
+  return {
+    deleted: true,
+    id: storyId,
+  };
+}
+
+export async function canViewStory(
+  story,
+  viewer = null
+) {
+  if (!story || isStoryExpired(story)) {
+    return false;
+  }
+
+  const viewerId =
+    viewer?.id || viewer?.user_id || null;
+
+  if (story.user_id === viewerId) {
+    return true;
+  }
+
+  const privacy = normalizePrivacy(story.privacy);
+
+  if (privacy === 'public') return true;
+  if (privacy === 'private') return false;
+  if (privacy === 'only_me') return false;
+  if (!viewerId) return false;
+
+  if (privacy === 'followers') {
+    const { data } = await supabase
+      .from('follows')
+      .select('id')
+      .eq('follower_id', viewerId)
+      .eq('following_id', story.user_id)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    return Boolean(data);
+  }
+
+  if (privacy === 'close_friends') {
+    const { data } = await supabase
+      .from('close_friends')
+      .select('id')
+      .eq('user_id', story.user_id)
+      .eq('friend_id', viewerId)
+      .maybeSingle();
+
+    return Boolean(data);
+  }
+
+  return false;
+}
+
+export async function canReplyToStory(
+  story,
+  viewer = null
+) {
+  return canViewStory(story, viewer);
+}
+
+export async function canShareStory(
+  story,
+  viewer = null
+) {
+  if (!(await canViewStory(story, viewer))) {
+    return false;
+  }
+
+  return normalizePrivacy(story?.privacy) === 'public';
+}
+
+export function subscribeToStories(
+  callback,
+  options = {}
+) {
+  if (!supabase || typeof callback !== 'function') {
+    return () => {};
+  }
+
+  const channelName =
+    options.channelName ||
+    `aarush-stories-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+
+  const channel = supabase
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: STORY_TABLE,
+      },
+      (payload) => {
+        try {
+          callback({
+            ...payload,
+            table: STORY_TABLE,
+          });
+        } catch {
+          // Consumer errors must not break realtime.
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: STORY_VIEWS_TABLE,
+      },
+      (payload) => {
+        try {
+          callback({
+            ...payload,
+            table: STORY_VIEWS_TABLE,
+          });
+        } catch {
+          // Consumer errors must not break realtime.
+        }
+      }
+    )
+    .subscribe((status, error) => {
+      if (status === 'CHANNEL_ERROR' && options.onError) {
+        options.onError(error);
+      }
+    });
+
+  return () => {
+    try {
+      supabase.removeChannel(channel);
+    } catch {
+      try {
+        channel.unsubscribe();
+      } catch {
+        // Realtime cleanup is best effort.
+      }
+    }
+  };
+}
+
+export async function getStorySyncState() {
+  assertSupabase();
+
+  const stories = await getStoryFeed();
+
+  return {
+    syncedAt: new Date().toISOString(),
+    stories,
+    activeCount: stories.reduce(
+      (total, group) =>
+        total + group.stories.length,
+      0
+    ),
+  };
 }
