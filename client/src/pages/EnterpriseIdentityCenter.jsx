@@ -1,77 +1,40 @@
 import { useState } from 'react';
 import {
+  BriefcaseBusiness,
   Check,
   ChevronLeft,
   ChevronRight,
   KeyRound,
+  Layers3,
   RefreshCw,
   Shield,
   UserPlus,
   Users,
-  Workspace,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import TopBar from '../components/TopBar';
 import BottomNav from '../components/BottomNav';
 import useEnterpriseIdentity from '../hooks/useEnterpriseIdentity';
+
 import {
   createOrganization,
   createWorkspace,
   inviteMember,
 } from '../utils/enterpriseIdentityEngine';
-import {
-  createRole,
-} from '../utils/accessControlEngine';
 
-function isGuestMode() {
-  if (typeof window === 'undefined') return false;
+import { createRole } from '../utils/accessControlEngine';
 
-  return (
-    window.localStorage.getItem(
-      'aarush_is_guest'
-    ) === 'true' &&
-    window.localStorage.getItem(
-      'aarush_guest_session'
-    ) === 'active'
-  );
-}
-
-function ActionRow({
-  icon,
-  title,
-  description,
-  onClick,
-  disabled = false,
-}) {
-  return (
-    <button
-      type="button"
-      className="enterprise-action-row"
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <div className="enterprise-action-icon">
-        {icon}
-      </div>
-
-      <span>
-        <strong>{title}</strong>
-        <small>{description}</small>
-      </span>
-
-      <ChevronRight size={18} />
-    </button>
-  );
+function WorkspaceIcon() {
+  return <Layers3 size={18} />;
 }
 
 export default function EnterpriseIdentityCenter() {
   const navigate = useNavigate();
-  const guest = isGuestMode();
 
   const {
     organization,
-    workspaces,
+    workspaces = [],
     access,
     status,
     loading,
@@ -81,816 +44,1197 @@ export default function EnterpriseIdentityCenter() {
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
-  const [actionError, setActionError] =
-    useState('');
+  const [actionError, setActionError] = useState('');
 
-  const runAction = async (
-    action,
-    message
-  ) => {
+  const permissions = access?.permissions || [];
+  const assignments = access?.assignments || [];
+  const roles = access?.roles || [];
+
+  const fallbackPermissions = [
+    'posts',
+    'stories',
+    'reels',
+    'chats',
+    'security',
+    'privacy',
+    'payments',
+    'analytics',
+    'teams',
+    'workspaces',
+    'api_access',
+    'admin_actions',
+  ];
+
+  const permissionItems = permissions.length
+    ? permissions
+    : fallbackPermissions;
+
+  const runAction = async (action, successMessage) => {
+    if (busy) return;
+
+    setBusy(true);
+    setNotice('');
+    setActionError('');
+
     try {
-      setBusy(true);
-      setActionError('');
       await action();
-      setNotice(message);
-      await refresh();
-    } catch (actionException) {
+      await refresh?.();
+      setNotice(successMessage);
+    } catch (actionFailure) {
       setActionError(
-        actionException?.message ||
-          'Unable to complete enterprise action.'
+        actionFailure?.message ||
+          'The action could not be completed. Please try again.'
       );
     } finally {
       setBusy(false);
     }
   };
 
-  const createOrg = () => {
-    if (guest) {
-      navigate('/login');
-      return;
-    }
-
+  const handleCreateOrganization = () =>
     runAction(
       () =>
         createOrganization({
           name: 'New Aarush organization',
           description: 'Enterprise workspace',
         }),
-      'Organization created.'
+      'Organization created successfully.'
     );
-  };
 
-  const createWork = () => {
-    if (guest) {
-      navigate('/login');
+  const handleCreateWorkspace = () => {
+    if (!organization?.id) {
+      setActionError(
+        'Create or select an organization before creating a workspace.'
+      );
       return;
     }
 
     runAction(
       () =>
         createWorkspace({
-          organization_id: organization?.id,
+          organization_id: organization.id,
           name: 'New workspace',
           workspace_type: 'business',
         }),
-      'Workspace created.'
+      'Workspace created successfully.'
     );
   };
 
-  const invite = () => {
-    if (guest) {
-      navigate('/login');
+  const handleInviteMember = () => {
+    if (!organization?.id) {
+      setActionError(
+        'An organization is required before inviting members.'
+      );
       return;
     }
 
-    const email = window.prompt(
-      'Enter member email:'
-    );
+    const email = window.prompt('Enter the member email address:');
 
-    if (!email) return;
+    if (email === null) return;
+
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      setActionError('Enter a valid email address.');
+      return;
+    }
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+    ) {
+      setActionError('Enter a valid email address.');
+      return;
+    }
 
     runAction(
       () =>
         inviteMember({
-          organizationId: organization?.id,
-          email,
+          organizationId: organization.id,
+          email: normalizedEmail,
           role: 'Member',
         }),
-      'Member invitation created.'
+      'Invitation sent successfully.'
     );
   };
 
-  const role = () => {
-    if (guest) {
-      navigate('/login');
+  const handleCreateRole = () => {
+    if (!organization?.id) {
+      setActionError(
+        'An organization is required before creating a role.'
+      );
       return;
     }
 
     runAction(
       () =>
         createRole({
-          organizationId: organization?.id,
+          organizationId: organization.id,
           name: 'Custom Manager',
-          permissions: [
-            'analytics',
-            'posts',
-            'teams',
-          ],
+          permissions: ['analytics', 'posts', 'teams'],
         }),
-      'Custom role created.'
+      'Custom role created successfully.'
     );
   };
 
   if (loading) {
     return (
-      <div className="social-page enterprise-page">
-        <TopBar />
+      <div style={styles.page}>
+        <TopBar title="Enterprise Identity" />
+        <main style={styles.container}>
+          <div style={styles.loadingHero}>
+            <span style={styles.loadingOrb}>
+              <Shield size={24} />
+            </span>
+            <div>
+              <h1 style={styles.loadingTitle}>
+                Loading enterprise identity
+              </h1>
+              <p style={styles.loadingText}>
+                Restoring organization and access context…
+              </p>
+            </div>
+          </div>
 
-        <main className="enterprise-content">
-          <div className="enterprise-loading-header" />
-          <div className="enterprise-loading-card" />
-          <div className="enterprise-loading-card" />
+          <div style={styles.metricGrid}>
+            {[1, 2, 3, 4].map((item) => (
+              <div
+                key={item}
+                style={styles.skeletonCard}
+              />
+            ))}
+          </div>
+
+          <div style={styles.skeletonPanel} />
         </main>
-
         <BottomNav />
-        <style>{styles}</style>
       </div>
     );
   }
 
   return (
-    <div className="social-page enterprise-page">
-      <TopBar />
+    <div style={styles.page}>
+      <TopBar title="Enterprise Identity" />
 
-      <main className="enterprise-content">
-        <header className="enterprise-header">
+      <main style={styles.container}>
+        <header style={styles.pageHeader}>
           <button
             type="button"
-            className="enterprise-icon-button"
             onClick={() => navigate(-1)}
             aria-label="Go back"
+            style={styles.iconButton}
           >
-            <ChevronLeft size={21} />
+            <ChevronLeft size={19} />
           </button>
 
-          <div>
-            <p className="enterprise-eyebrow">
-              Enterprise identity
+          <div style={styles.headerCopy}>
+            <span style={styles.eyebrow}>
+              Aarush Enterprise Access
+            </span>
+            <h1 style={styles.pageTitle}>
+              Enterprise Identity Center
+            </h1>
+            <p style={styles.pageSubtitle}>
+              Manage organizations, workspaces, roles, permissions,
+              and identity infrastructure.
             </p>
-            <h1>Identity Center</h1>
           </div>
 
           <button
             type="button"
-            className="enterprise-icon-button"
-            onClick={refresh}
+            onClick={() => refresh?.()}
             disabled={busy}
-            aria-label="Refresh identity"
+            aria-label="Refresh enterprise identity"
+            style={styles.iconButton}
           >
-            <RefreshCw size={18} />
+            <RefreshCw
+              size={18}
+              style={
+                busy ? styles.spinningIcon : undefined
+              }
+            />
           </button>
         </header>
 
-        {error || actionError ? (
-          <div className="enterprise-error" role="alert">
-            <span>{error || actionError}</span>
+        {error ? (
+          <div role="alert" style={styles.errorBox}>
+            <Shield size={16} />
+            <span>
+              Enterprise identity could not be loaded. Please
+              refresh and try again.
+            </span>
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div role="alert" style={styles.errorBox}>
+            <Shield size={16} />
+            <span>{actionError}</span>
           </div>
         ) : null}
 
         {notice ? (
-          <div className="enterprise-notice" role="status">
+          <div role="status" style={styles.noticeBox}>
             <Check size={16} />
             <span>{notice}</span>
           </div>
         ) : null}
 
-        <section className="enterprise-status-card">
-          <div className="enterprise-status-icon">
-            <Shield size={27} />
+        <section style={styles.identityCard}>
+          <div style={styles.identityOrb}>
+            <Shield size={28} />
           </div>
 
-          <div className="enterprise-status-copy">
-            <p>Organization overview</p>
-            <h2>
-              {organization?.name ||
-                'Enterprise setup ready'}
-            </h2>
-            <span>
-              {status?.workspaces || 0} workspaces
-              {' · '}
-              {status?.verified
-                ? 'Verified'
-                : 'Verification prepared'}
+          <div style={styles.identityCopy}>
+            <span style={styles.statusPill}>
+              <span style={styles.statusDot} />
+              {status || 'Enterprise identity active'}
             </span>
+
+            <h2 style={styles.identityTitle}>
+              {organization?.name || 'Aarush Enterprise'}
+            </h2>
+
+            <p style={styles.identityDescription}>
+              Server-authorized enterprise identity and access
+              management for your Aarush organization.
+            </p>
+
+            <div style={styles.identityMeta}>
+              <span>
+                {workspaces.length} workspaces
+              </span>
+              <span>
+                {organization?.verified
+                  ? 'Verified organization'
+                  : 'Verification foundation'}
+              </span>
+            </div>
           </div>
 
           <button
             type="button"
-            className="enterprise-primary-button"
-            onClick={createOrg}
-            disabled={guest || busy}
+            onClick={handleCreateOrganization}
+            disabled={busy}
+            style={styles.primaryButton}
           >
             <PlusIcon />
-            Organization
+            Create organization
           </button>
         </section>
 
-        <section className="enterprise-metric-grid">
-          <article className="enterprise-metric">
-            <WorkspaceIcon />
-            <span>Workspaces</span>
-            <strong>{workspaces.length}</strong>
-          </article>
-
-          <article className="enterprise-metric">
-            <Users size={18} />
-            <span>Assignments</span>
-            <strong>
-              {access?.assignments?.length || 0}
-            </strong>
-          </article>
-
-          <article className="enterprise-metric">
-            <KeyRound size={18} />
-            <span>Roles</span>
-            <strong>{access?.roles?.length || 0}</strong>
-          </article>
-
-          <article className="enterprise-metric">
-            <Shield size={18} />
-            <span>Permissions</span>
-            <strong>
-              {access?.permissions?.length || 0}
-            </strong>
-          </article>
+        <section style={styles.metricGrid}>
+          <MetricCard
+            label="Workspaces"
+            value={workspaces.length}
+            icon={WorkspaceIcon}
+            color="#2563eb"
+          />
+          <MetricCard
+            label="Assignments"
+            value={assignments.length}
+            icon={Users}
+            color="#7c5cff"
+          />
+          <MetricCard
+            label="Roles"
+            value={roles.length}
+            icon={KeyRound}
+            color="#16a34a"
+          />
+          <MetricCard
+            label="Permissions"
+            value={permissions.length || fallbackPermissions.length}
+            icon={Shield}
+            color="#d97706"
+          />
         </section>
 
-        <section className="enterprise-section">
-          <div className="enterprise-section-heading">
-            <WorkspaceIcon />
-            <div>
-              <h2>Workspaces</h2>
-              <p>
-                Personal, business, creator, shared, and enterprise workspaces.
-              </p>
-            </div>
-          </div>
-
-          <div className="enterprise-card">
-            <ActionRow
-              icon={<PlusIcon />}
-              title="Create workspace"
-              description="Add a workspace to the organization."
-              onClick={createWork}
-              disabled={guest || busy}
-            />
-
-            {workspaces.map((workspace) => (
-              <article
-                className="enterprise-list-row"
-                key={workspace.id}
+        <section style={styles.section}>
+          <SectionHeader
+            title="Workspaces"
+            subtitle="Create and manage enterprise workspaces."
+            icon={Layers3}
+            action={
+              <button
+                type="button"
+                onClick={handleCreateWorkspace}
+                disabled={busy}
+                style={styles.secondaryButton}
               >
-                <WorkspaceIcon />
-                <div>
-                  <strong>{workspace.name}</strong>
-                  <span>
-                    {workspace.workspace_type}
-                    {' · '}
-                    {workspace.status}
+                <PlusIcon />
+                New workspace
+              </button>
+            }
+          />
+
+          <div style={styles.workspaceList}>
+            {workspaces.length ? (
+              workspaces.map((workspace) => (
+                <button
+                  type="button"
+                  key={workspace.id}
+                  onClick={() =>
+                    navigate(
+                      `/workspace/${workspace.id}`
+                    )
+                  }
+                  style={styles.workspaceRow}
+                >
+                  <span style={styles.workspaceIcon}>
+                    <WorkspaceIcon />
                   </span>
-                </div>
-              </article>
-            ))}
+
+                  <span style={styles.workspaceCopy}>
+                    <strong>
+                      {workspace.name || 'Workspace'}
+                    </strong>
+                    <span>
+                      {workspace.workspace_type ||
+                        workspace.type ||
+                        'Enterprise workspace'}
+                    </span>
+                    <small>
+                      {workspace.status || 'Active'}
+                    </small>
+                  </span>
+
+                  <ChevronRight
+                    size={17}
+                    color="#64748b"
+                  />
+                </button>
+              ))
+            ) : (
+              <EmptyState text="No workspaces created yet." />
+            )}
           </div>
         </section>
 
-        <section className="enterprise-section">
-          <div className="enterprise-section-heading">
-            <Users size={17} />
-            <div>
-              <h2>Team members</h2>
-              <p>
-                Invite members and prepare granular access roles.
-              </p>
-            </div>
-          </div>
-
-          <div className="enterprise-card">
-            <ActionRow
-              icon={<UserPlus size={18} />}
-              title="Invite member"
-              description="Invite a team member by email."
-              onClick={invite}
-              disabled={guest || busy}
-            />
-
-            <ActionRow
-              icon={<Users size={18} />}
-              title="Manage team"
-              description="Review members, roles, status, and workspaces."
-              onClick={() =>
-                navigate('/business-team')
-              }
-              disabled={busy}
-            />
-
-            <ActionRow
-              icon={<KeyRound size={18} />}
-              title="Create role"
-              description="Create a custom role with granular permissions."
-              onClick={role}
-              disabled={guest || busy}
-            />
-          </div>
-        </section>
-
-        <section className="enterprise-section">
-          <div className="enterprise-section-heading">
-            <Shield size={17} />
-            <div>
-              <h2>Roles and permissions</h2>
-              <p>
-                Owner, Admin, Manager, Developer, Analyst, Member, and Guest.
-              </p>
-            </div>
-          </div>
-
-          <div className="enterprise-permission-grid">
-            {(access?.permissions || [
-              'posts',
-              'stories',
-              'reels',
-              'chats',
-              'security',
-              'privacy',
-              'payments',
-              'analytics',
-              'teams',
-              'workspaces',
-              'api_access',
-              'admin_actions',
-            ]).map((permission) => (
-              <div
-                className="enterprise-permission"
-                key={permission}
+        <section style={styles.section}>
+          <SectionHeader
+            title="Team Access"
+            subtitle="Invite members and manage team administration."
+            icon={Users}
+            action={
+              <button
+                type="button"
+                onClick={handleInviteMember}
+                disabled={busy}
+                style={styles.secondaryButton}
               >
-                <Check size={15} />
-                <span>{permission}</span>
+                <UserPlus size={15} />
+                Invite member
+              </button>
+            }
+          />
+
+          <div style={styles.actionGrid}>
+            <ActionCard
+              icon={Users}
+              title="Manage team"
+              description="Review members and organization assignments."
+              onClick={() => navigate('/business-team')}
+            />
+            <ActionCard
+              icon={KeyRound}
+              title="Create role"
+              description="Add a custom role with controlled permissions."
+              onClick={handleCreateRole}
+            />
+            <ActionCard
+              icon={Shield}
+              title="Security center"
+              description="Review security controls and access signals."
+              onClick={() => navigate('/security-center')}
+            />
+          </div>
+        </section>
+
+        <section style={styles.section}>
+          <SectionHeader
+            title="Roles & Permissions"
+            subtitle="Current access capabilities for this organization."
+            icon={KeyRound}
+            action={
+              <span style={styles.sectionBadge}>
+                {roles.length} roles
+              </span>
+            }
+          />
+
+          <div style={styles.permissionGrid}>
+            {permissionItems.map((permission) => (
+              <div
+                key={
+                  typeof permission === 'string'
+                    ? permission
+                    : permission.id || permission.name
+                }
+                style={styles.permissionCard}
+              >
+                <span style={styles.permissionCheck}>
+                  <Check size={13} />
+                </span>
+                <span>
+                  {typeof permission === 'string'
+                    ? permission
+                    : permission.name || permission.key}
+                </span>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="enterprise-section">
-          <div className="enterprise-section-heading">
-            <KeyRound size={17} />
-            <div>
-              <h2>SSO preparation</h2>
-              <p>
-                Prepare Google, Microsoft, Apple, GitHub, SAML, and OIDC identity providers.
-              </p>
-            </div>
-          </div>
+        <section style={styles.section}>
+          <SectionHeader
+            title="SSO Preparation"
+            subtitle="Enterprise identity providers ready for configuration."
+            icon={Shield}
+            action={
+              <span style={styles.sectionBadge}>
+                Configuration foundation
+              </span>
+            }
+          />
 
-          <div className="enterprise-feature-grid">
+          <div style={styles.ssoGrid}>
             {[
               'Google SSO',
               'Microsoft SSO',
               'Apple SSO',
               'GitHub SSO',
-              'SAML placeholder',
+              'SAML',
               'OpenID Connect',
               'Domain-based login',
               'Enterprise providers',
-            ].map((feature) => (
+            ].map((provider) => (
               <div
-                className="enterprise-feature"
-                key={feature}
+                key={provider}
+                style={styles.ssoCard}
               >
-                <Check size={15} />
-                <span>{feature}</span>
+                <Check size={15} color="#16a34a" />
+                <span>
+                  <strong>{provider}</strong>
+                  <small>Ready for integration</small>
+                </span>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="enterprise-section">
-          <div className="enterprise-section-heading">
-            <RefreshCw size={17} />
-            <div>
-              <h2>Audit and administration</h2>
-              <p>
-                Track identity, role, permission, API, integration, and admin events.
-              </p>
-            </div>
-          </div>
+        <section style={styles.section}>
+          <SectionHeader
+            title="Audit & Administration"
+            subtitle="Review enterprise events and platform controls."
+            icon={Shield}
+          />
 
-          <div className="enterprise-card">
-            <ActionRow
-              icon={<Shield size={18} />}
+          <div style={styles.actionGrid}>
+            <ActionCard
+              icon={Shield}
               title="View audit logs"
-              description="Review organization and access events."
-              onClick={() =>
-                navigate('/security-center')
-              }
-              disabled={busy}
+              description="Inspect security and identity activity."
+              onClick={() => navigate('/security-center')}
             />
-
-            <ActionRow
-              icon={<KeyRound size={18} />}
+            <ActionCard
+              icon={KeyRound}
               title="Advanced access control"
-              description="Manage API access, webhooks, admin actions, and service accounts."
-              onClick={() =>
-                navigate('/developer-platform')
-              }
-              disabled={busy}
+              description="Manage platform-level access foundations."
+              onClick={() => navigate('/developer-platform')}
             />
-
-            <ActionRow
-              icon={<Users size={18} />}
+            <ActionCard
+              icon={Layers3}
               title="Enterprise analytics"
-              description="Review workspace, team, usage, and identity activity."
-              onClick={() =>
-                navigate('/business-analytics')
-              }
-              disabled={busy}
+              description="Review organization intelligence."
+              onClick={() => navigate('/enterprise-analytics')}
             />
           </div>
         </section>
 
-        <p className="enterprise-footer">
-          Guests can view enterprise identity information.
-          Organizations, workspaces, members, roles,
-          permissions, SSO, and admin actions require
+        <footer style={styles.footerNote}>
+          <Shield size={14} />
+          Enterprise identity actions are protected by
           authentication and server-side authorization.
-        </p>
+        </footer>
       </main>
 
       <BottomNav />
 
-      <style>{styles}</style>
+      <style>{`
+        @keyframes enterpriseIdentitySpin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @media (max-width: 720px) {
+          .aarush-enterprise-identity-header {
+            grid-template-columns: auto 1fr auto !important;
+          }
+
+          .aarush-enterprise-identity-card {
+            grid-template-columns: auto 1fr !important;
+          }
+
+          .aarush-enterprise-identity-card > button {
+            grid-column: 1 / -1;
+            width: 100%;
+          }
+
+          .aarush-enterprise-identity-metrics {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+
+          .aarush-enterprise-identity-actions,
+          .aarush-enterprise-identity-permissions,
+          .aarush-enterprise-identity-sso {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation-duration: 1ms !important;
+            transition-duration: 1ms !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  subtitle,
+  icon: Icon,
+  action,
+}) {
+  return (
+    <div style={styles.sectionHeader}>
+      <div style={styles.sectionHeading}>
+        <span style={styles.sectionIcon}>
+          <Icon size={16} />
+        </span>
+        <div>
+          <h2 style={styles.sectionTitle}>{title}</h2>
+          <p style={styles.sectionSubtitle}>{subtitle}</p>
+        </div>
+      </div>
+      {action || null}
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+}) {
+  return (
+    <div style={styles.metricCard}>
+      <span
+        style={{
+          ...styles.metricIcon,
+          color,
+          background: `${color}16`,
+        }}
+      >
+        <Icon size={18} />
+      </span>
+      <span style={styles.metricLabel}>{label}</span>
+      <strong style={styles.metricValue}>{value}</strong>
+    </div>
+  );
+}
+
+function ActionCard({
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={styles.actionCard}
+    >
+      <span style={styles.actionIcon}>
+        <Icon size={17} />
+      </span>
+      <span style={styles.actionCopy}>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+      <ChevronRight size={16} color="#64748b" />
+    </button>
+  );
+}
+
+function EmptyState({ text }) {
+  return (
+    <div style={styles.emptyState}>
+      <Layers3 size={21} />
+      <span>{text}</span>
     </div>
   );
 }
 
 function PlusIcon() {
-  return <UserPlus size={17} />;
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </svg>
+  );
 }
 
-function WorkspaceIcon() {
-  return <Workspace size={18} />;
-}
-
-const styles = `
-  .enterprise-page {
-    min-height: 100vh;
-    color: #f4f7ff;
+const styles = {
+  page: {
+    minHeight: '100vh',
+    paddingBottom: '5.5rem',
+    color: '#1f2937',
     background:
-      radial-gradient(
-        circle at 0% 0%,
-        rgba(124,92,255,0.2),
-        transparent 35%
-      ),
-      radial-gradient(
-        circle at 100% 18%,
-        rgba(77,215,255,0.1),
-        transparent 30%
-      ),
-      #080b13;
-  }
+      'radial-gradient(circle at top, rgba(124,92,255,.08), transparent 30rem), #f7f9fc',
+  },
 
-  .enterprise-content {
-    width: min(100%, 900px);
-    margin: 0 auto;
-    padding: 1rem 1rem 7rem;
-  }
+  container: {
+    width: 'min(100%, 1120px)',
+    margin: '0 auto',
+    padding: '1rem',
+    display: 'grid',
+    gap: '1rem',
+  },
 
-  .enterprise-header {
-    display: grid;
-    grid-template-columns: 2.5rem 1fr 2.5rem;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-  }
+  pageHeader: {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr auto',
+    alignItems: 'center',
+    gap: '.75rem',
+  },
 
-  .enterprise-header h1 {
-    margin: 0;
-    font-size: 1.35rem;
-    letter-spacing: -0.03em;
-  }
+  iconButton: {
+    width: '2.6rem',
+    height: '2.6rem',
+    display: 'grid',
+    placeItems: 'center',
+    border: '1px solid rgba(15,23,42,.1)',
+    borderRadius: '999px',
+    color: '#334155',
+    background: 'rgba(255,255,255,.9)',
+    boxShadow: '0 4px 14px rgba(15,23,42,.06)',
+    cursor: 'pointer',
+  },
 
-  .enterprise-eyebrow {
-    margin: 0 0 0.2rem;
-    color: #8d9abb;
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
+  spinningIcon: {
+    animation:
+      'enterpriseIdentitySpin 800ms linear infinite',
+  },
 
-  .enterprise-icon-button {
-    width: 2.5rem;
-    height: 2.5rem;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 0.9rem;
-    color: #eaf0ff;
-    background: rgba(255,255,255,0.06);
-    cursor: pointer;
-  }
+  headerCopy: {
+    minWidth: 0,
+  },
 
-  .enterprise-icon-button:last-child {
-    justify-self: end;
-  }
+  eyebrow: {
+    color: '#7c5cff',
+    fontSize: '.67rem',
+    fontWeight: 800,
+    letterSpacing: '.04em',
+    textTransform: 'uppercase',
+  },
 
-  .enterprise-error,
-  .enterprise-notice {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.8rem;
-    padding: 0.75rem 0.85rem;
-    border-radius: 0.9rem;
-    font-size: 0.75rem;
-  }
+  pageTitle: {
+    margin: '.2rem 0',
+    color: '#111827',
+    fontSize: 'clamp(1.2rem, 3vw, 1.8rem)',
+    lineHeight: 1.2,
+  },
 
-  .enterprise-error {
-    color: #ffc2d0;
-    border: 1px solid rgba(255,91,132,0.25);
-    background: rgba(255,91,132,0.08);
-  }
+  pageSubtitle: {
+    margin: 0,
+    color: '#64748b',
+    fontSize: '.78rem',
+    lineHeight: 1.5,
+  },
 
-  .enterprise-notice {
-    color: #c9f9ff;
-    border: 1px solid rgba(77,215,255,0.2);
-    background: rgba(77,215,255,0.08);
-  }
+  loadingPage: {
+    minHeight: '100vh',
+    display: 'grid',
+    placeItems: 'center',
+    alignContent: 'center',
+    gap: '.8rem',
+    color: '#111827',
+    background:
+      'radial-gradient(circle at top, #ffffff, #f1f4f9)',
+  },
 
-  .enterprise-status-card,
-  .enterprise-card,
-  .enterprise-metric,
-  .enterprise-permission,
-  .enterprise-feature {
-    border: 1px solid rgba(255,255,255,0.09);
-    background: rgba(17,22,36,0.72);
-    box-shadow: 0 20px 55px rgba(0,0,0,0.18);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-  }
+  loadingHero: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.75rem',
+    minHeight: '6rem',
+    padding: '1rem',
+    border: '1px solid rgba(124,92,255,.14)',
+    borderRadius: '1rem',
+    background: '#ffffff',
+    boxShadow: '0 10px 28px rgba(15,23,42,.07)',
+  },
 
-  .enterprise-status-card {
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 1rem;
-    border-radius: 1.25rem;
-  }
+  loadingOrb: {
+    width: '3.5rem',
+    height: '3.5rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '1rem',
+    color: '#7c5cff',
+    background: '#f3f0ff',
+  },
 
-  .enterprise-status-icon {
-    width: 3.3rem;
-    height: 3.3rem;
-    display: grid;
-    flex: 0 0 auto;
-    place-items: center;
-    border-radius: 1rem;
-    color: #fff;
-    background: linear-gradient(
-      135deg,
-      #7c5cff,
-      #4dd7ff
-    );
-  }
+  loadingTitle: {
+    margin: 0,
+    fontSize: '1rem',
+  },
 
-  .enterprise-status-copy {
-    min-width: 0;
-    flex: 1;
-    display: grid;
-    gap: 0.2rem;
-  }
+  loadingText: {
+    margin: '.2rem 0 0',
+    color: '#64748b',
+    fontSize: '.72rem',
+  },
 
-  .enterprise-status-copy p {
-    margin: 0;
-    color: #8491ad;
-    font-size: 0.7rem;
-  }
+  loadingDot: {
+    width: '.6rem',
+    height: '.6rem',
+    borderRadius: '999px',
+    background: '#7c5cff',
+    boxShadow: '0 0 18px rgba(124,92,255,.5)',
+  },
 
-  .enterprise-status-copy h2 {
-    margin: 0;
-    font-size: 1.05rem;
-  }
+  skeletonCard: {
+    minHeight: '7rem',
+    borderRadius: '1rem',
+    background:
+      'linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%)',
+    backgroundSize: '200% 100%',
+    animation: 'enterpriseIdentityShimmer 1.4s infinite',
+  },
 
-  .enterprise-status-copy span {
-    color: #98a5c2;
-    font-size: 0.7rem;
-  }
+  skeletonPanel: {
+    minHeight: '18rem',
+    borderRadius: '1rem',
+    background:
+      'linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%)',
+    backgroundSize: '200% 100%',
+    animation: 'enterpriseIdentityShimmer 1.4s infinite',
+  },
 
-  .enterprise-primary-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    min-height: 2.35rem;
-    padding: 0.55rem 0.75rem;
-    border: 0;
-    border-radius: 999px;
-    color: #fff;
-    background: linear-gradient(
-      135deg,
-      #7c5cff,
-      #4dd7ff
-    );
-    font-size: 0.7rem;
-    font-weight: 850;
-    cursor: pointer;
-  }
+  identityCard: {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr auto',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '1rem',
+    border: '1px solid rgba(124,92,255,.18)',
+    borderRadius: '1.25rem',
+    background:
+      'linear-gradient(135deg, rgba(255,255,255,.98), rgba(243,240,255,.92))',
+    boxShadow: '0 16px 40px rgba(124,92,255,.1)',
+  },
 
-  .enterprise-primary-button:disabled {
-    opacity: 0.55;
-    cursor: wait;
-  }
+  identityOrb: {
+    width: '4.2rem',
+    height: '4.2rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '1.15rem',
+    color: '#ffffff',
+    background:
+      'linear-gradient(135deg, #7c5cff, #2563eb)',
+    boxShadow: '0 12px 25px rgba(124,92,255,.22)',
+  },
 
-  .enterprise-metric-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.6rem;
-    margin-top: 0.7rem;
-  }
+  identityCopy: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '.35rem',
+  },
 
-  .enterprise-metric {
-    display: grid;
-    gap: 0.3rem;
-    min-height: 6.5rem;
-    padding: 0.75rem;
-    border-radius: 1rem;
-    color: #b8a9ff;
-  }
+  statusPill: {
+    width: 'fit-content',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '.3rem',
+    padding: '.3rem .5rem',
+    borderRadius: '999px',
+    color: '#15803d',
+    background: '#ecfdf3',
+    fontSize: '.6rem',
+    fontWeight: 800,
+  },
 
-  .enterprise-metric span {
-    color: #8491ad;
-    font-size: 0.65rem;
-  }
+  statusDot: {
+    width: '.42rem',
+    height: '.42rem',
+    borderRadius: '999px',
+    background: '#16a34a',
+  },
 
-  .enterprise-metric strong {
-    color: #edf2ff;
-    font-size: 0.9rem;
-  }
+  identityTitle: {
+    margin: 0,
+    color: '#111827',
+    fontSize: '1.2rem',
+  },
 
-  .enterprise-section {
-    margin-top: 1.3rem;
-  }
+  identityDescription: {
+    maxWidth: '42rem',
+    margin: 0,
+    color: '#64748b',
+    fontSize: '.75rem',
+    lineHeight: 1.5,
+  },
 
-  .enterprise-section-heading {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.55rem;
-    margin: 0 0 0.6rem 0.2rem;
-    color: #b8a9ff;
-  }
+  identityMeta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '.5rem',
+    color: '#475569',
+    fontSize: '.65rem',
+    fontWeight: 700,
+  },
 
-  .enterprise-section-heading h2 {
-    margin: 0;
-    color: #edf2ff;
-    font-size: 0.9rem;
-  }
+  primaryButton: {
+    minHeight: '2.65rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '.35rem',
+    padding: '0 .8rem',
+    border: 0,
+    borderRadius: '.7rem',
+    color: '#ffffff',
+    background:
+      'linear-gradient(135deg, #7c5cff, #2563eb)',
+    boxShadow: '0 8px 18px rgba(124,92,255,.18)',
+    fontSize: '.68rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
 
-  .enterprise-section-heading p {
-    margin: 0.2rem 0 0;
-    color: #75829e;
-    font-size: 0.7rem;
-  }
+  secondaryButton: {
+    minHeight: '2.4rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '.3rem',
+    padding: '0 .65rem',
+    border: '1px solid rgba(124,92,255,.2)',
+    borderRadius: '.65rem',
+    color: '#5b3bd4',
+    background: '#f3f0ff',
+    fontSize: '.65rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
 
-  .enterprise-card {
-    overflow: hidden;
-    border-radius: 1.2rem;
-  }
+  metricGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '.65rem',
+  },
 
-  .enterprise-action-row {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    width: 100%;
-    min-height: 4.3rem;
-    padding: 0.8rem 0.9rem;
-    border: 0;
-    color: inherit;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-  }
+  metricCard: {
+    minHeight: '6.7rem',
+    display: 'grid',
+    alignContent: 'start',
+    gap: '.3rem',
+    padding: '.75rem',
+    border: '1px solid rgba(15,23,42,.08)',
+    borderRadius: '1rem',
+    background: '#ffffff',
+    boxShadow: '0 6px 20px rgba(15,23,42,.05)',
+  },
 
-  .enterprise-action-row + .enterprise-action-row {
-    border-top: 1px solid rgba(255,255,255,0.07);
-  }
+  metricIcon: {
+    width: '2rem',
+    height: '2rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '.65rem',
+  },
 
-  .enterprise-action-row:disabled {
-    opacity: 0.55;
-    cursor: wait;
-  }
+  metricLabel: {
+    color: '#64748b',
+    fontSize: '.62rem',
+  },
 
-  .enterprise-action-icon {
-    width: 2.3rem;
-    height: 2.3rem;
-    display: grid;
-    flex: 0 0 auto;
-    place-items: center;
-    border-radius: 0.75rem;
-    color: #c8bfff;
-    background: rgba(124,92,255,0.13);
-  }
+  metricValue: {
+    overflow: 'hidden',
+    color: '#111827',
+    fontSize: '.82rem',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
 
-  .enterprise-action-row > span,
-  .enterprise-list-row > div {
-    min-width: 0;
-    flex: 1;
-    display: grid;
-    gap: 0.2rem;
-  }
+  section: {
+    display: 'grid',
+    gap: '.75rem',
+    padding: '1rem',
+    border: '1px solid rgba(15,23,42,.08)',
+    borderRadius: '1rem',
+    background: 'rgba(255,255,255,.88)',
+    boxShadow: '0 8px 25px rgba(15,23,42,.05)',
+    backdropFilter: 'blur(12px)',
+  },
 
-  .enterprise-action-row strong,
-  .enterprise-list-row strong {
-    color: #edf2ff;
-    font-size: 0.78rem;
-  }
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '.75rem',
+  },
 
-  .enterprise-action-row small,
-  .enterprise-list-row span {
-    color: #8491ad;
-    font-size: 0.68rem;
-  }
+  sectionHeading: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.55rem',
+    minWidth: 0,
+  },
 
-  .enterprise-list-row {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    min-height: 3.8rem;
-    padding: 0.7rem 0.9rem;
-    border-top: 1px solid rgba(255,255,255,0.07);
-    color: #b8a9ff;
-  }
+  sectionIcon: {
+    width: '2rem',
+    height: '2rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '.65rem',
+    color: '#7c5cff',
+    background: '#f3f0ff',
+  },
 
-  .enterprise-permission-grid,
-  .enterprise-feature-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.55rem;
-  }
+  sectionTitle: {
+    margin: 0,
+    color: '#111827',
+    fontSize: '.9rem',
+  },
 
-  .enterprise-permission,
-  .enterprise-feature {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    min-height: 3rem;
-    padding: 0.7rem;
-    border-radius: 0.9rem;
-    color: #c9f9ff;
-    font-size: 0.68rem;
-  }
+  sectionSubtitle: {
+    margin: '.15rem 0 0',
+    color: '#64748b',
+    fontSize: '.68rem',
+    lineHeight: 1.4,
+  },
 
-  .enterprise-permission span,
-  .enterprise-feature span {
-    color: #dce5f7;
-  }
+  sectionBadge: {
+    padding: '.3rem .45rem',
+    borderRadius: '999px',
+    color: '#475569',
+    background: '#f1f5f9',
+    fontSize: '.56rem',
+    fontWeight: 750,
+  },
 
-  .enterprise-footer {
-    margin: 1.25rem 0 0;
-    color: #697691;
-    font-size: 0.7rem;
-    line-height: 1.5;
-    text-align: center;
-  }
+  workspaceList: {
+    display: 'grid',
+    gap: '.45rem',
+  },
 
-  .enterprise-loading-header,
-  .enterprise-loading-card {
-    border-radius: 1rem;
-    background: linear-gradient(
-      90deg,
-      rgba(255,255,255,0.05),
-      rgba(255,255,255,0.11),
-      rgba(255,255,255,0.05)
-    );
-    background-size: 220% 100%;
-    animation: enterprise-skeleton 1.4s infinite;
-  }
+  workspaceRow: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.6rem',
+    padding: '.65rem',
+    border: '1px solid rgba(15,23,42,.08)',
+    borderRadius: '.75rem',
+    color: '#1f2937',
+    background: '#ffffff',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
 
-  .enterprise-loading-header {
-    width: 14rem;
-    height: 2.8rem;
-    margin-bottom: 1rem;
-  }
+  workspaceIcon: {
+    width: '2.3rem',
+    height: '2.3rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '.65rem',
+    color: '#2563eb',
+    background: '#eff6ff',
+  },
 
-  .enterprise-loading-card {
-    height: 17rem;
-    margin-top: 1rem;
-  }
+  workspaceCopy: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '.15rem',
+    flex: 1,
+  },
 
-  @keyframes enterprise-skeleton {
-    to {
-      background-position: -220% 0;
-    }
-  }
+  workspaceCopySpan: {
+    color: '#64748b',
+    fontSize: '.62rem',
+  },
 
-  @media (max-width: 720px) {
-    .enterprise-metric-grid,
-    .enterprise-permission-grid,
-    .enterprise-feature-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
+  workspaceCopySmall: {
+    color: '#16a34a',
+    fontSize: '.58rem',
+    fontWeight: 700,
+  },
 
-  @media (max-width: 560px) {
-    .enterprise-content {
-      padding-right: 0.75rem;
-      padding-left: 0.75rem;
-    }
+  actionGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '.55rem',
+  },
 
-    .enterprise-status-card {
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
+  actionCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.55rem',
+    minHeight: '4.1rem',
+    padding: '.65rem',
+    border: '1px solid rgba(15,23,42,.08)',
+    borderRadius: '.8rem',
+    color: '#1f2937',
+    background: '#ffffff',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
 
-    .enterprise-primary-button {
-      margin-left: auto;
-    }
-  }
-`;
+  actionIcon: {
+    width: '2.15rem',
+    height: '2.15rem',
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    borderRadius: '.6rem',
+    color: '#7c5cff',
+    background: '#f3f0ff',
+  },
+
+  actionCopy: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '.15rem',
+    flex: 1,
+  },
+
+  actionCopySmall: {
+    color: '#64748b',
+    fontSize: '.6rem',
+    lineHeight: 1.35,
+  },
+
+  permissionGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '.45rem',
+  },
+
+  permissionCard: {
+    minHeight: '2.5rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.35rem',
+    padding: '0 .5rem',
+    border: '1px solid rgba(22,163,74,.14)',
+    borderRadius: '.65rem',
+    color: '#166534',
+    background: '#f0fdf4',
+    fontSize: '.6rem',
+    fontWeight: 700,
+  },
+
+  permissionCheck: {
+    width: '1.2rem',
+    height: '1.2rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '.35rem',
+    color: '#16a34a',
+    background: '#dcfce7',
+  },
+
+  ssoGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '.45rem',
+  },
+
+  ssoCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.4rem',
+    minHeight: '3.4rem',
+    padding: '.55rem',
+    border: '1px solid rgba(15,23,42,.08)',
+    borderRadius: '.7rem',
+    background: '#ffffff',
+  },
+
+  ssoCardSpan: {
+    minWidth: 0,
+    display: 'grid',
+    gap: '.12rem',
+  },
+
+  ssoCardSmall: {
+    color: '#64748b',
+    fontSize: '.52rem',
+  },
+
+  errorBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.4rem',
+    padding: '.7rem',
+    border: '1px solid rgba(220,38,38,.2)',
+    borderRadius: '.75rem',
+    color: '#991b1b',
+    background: '#fef2f2',
+    fontSize: '.68rem',
+  },
+
+  noticeBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.4rem',
+    padding: '.7rem',
+    border: '1px solid rgba(22,163,74,.18)',
+    borderRadius: '.75rem',
+    color: '#166534',
+    background: '#f0fdf4',
+    fontSize: '.68rem',
+  },
+
+  footerNote: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '.35rem',
+    padding: '.75rem',
+    color: '#64748b',
+    fontSize: '.63rem',
+    textAlign: 'center',
+  },
+
+  emptyState: {
+    minHeight: '5rem',
+    display: 'grid',
+    placeItems: 'center',
+    alignContent: 'center',
+    gap: '.35rem',
+    color: '#64748b',
+    fontSize: '.68rem',
+    textAlign: 'center',
+  },
+};

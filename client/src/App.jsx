@@ -11,13 +11,13 @@ import {
 import { ShieldCheck, WifiOff } from 'lucide-react';
 import { supabase } from './lib/supabase';
 
-import HomeFeed from './pages/HomeFeed';
+import Splash from './pages/Splash';
+import Welcome from './pages/Welcome';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
-import Welcome from './pages/Welcome';
-import Splash from './pages/Splash';
 
+import HomeFeed from './pages/HomeFeed';
 import ReelsPage from './pages/ReelsPage';
 import SearchPage from './pages/SearchPage';
 import UploadPage from './pages/UploadPage';
@@ -40,7 +40,6 @@ import SocialPrivacySettings from './pages/SocialPrivacySettings';
 import NotificationsPage from './pages/NotificationsPage';
 import NotificationCenter from './pages/NotificationCenter';
 import NotificationPrivacy from './pages/NotificationPrivacy';
-import NotificationSettings from './pages/NotificationSettings';
 
 import ChatsPage from './pages/ChatsPage';
 import ChatConversation from './pages/ChatConversation';
@@ -55,12 +54,9 @@ import PrivateSafeSettings from './pages/PrivateSafeSettings';
 import SmartPrivacyCenter from './pages/SmartPrivacyCenter';
 
 import SecurityCenter from './pages/SecurityCenter';
-import SecuritySettings from './pages/SecuritySettings';
 import AarushAISecurity from './pages/AarushAISecurity';
-import AarushAI from './pages/AarushAI';
 import AppLockSettings from './pages/AppLockSettings';
 import CallPrivacyCenter from './pages/CallPrivacyCenter';
-import CallPrivacy from './pages/CallPrivacy';
 import SessionSecurityCenter from './pages/SessionSecurityCenter';
 import ThreatCenter from './pages/ThreatCenter';
 import ZeroTrustCenter from './pages/ZeroTrustCenter';
@@ -68,7 +64,6 @@ import EncryptionCenter from './pages/EncryptionCenter';
 import DevicesCenter from './pages/DevicesCenter';
 
 import MemoriesVault from './pages/MemoriesVault';
-import Vault from './pages/Vault';
 
 import CreatorAnalytics from './pages/CreatorAnalytics';
 import CreatorProductionCenter from './pages/CreatorProductionCenter';
@@ -78,18 +73,19 @@ import PricingPlans from './pages/PricingPlans';
 import PayoutSettings from './pages/PayoutSettings';
 
 import AccountSwitchPage from './pages/AccountSwitchPage';
-import SessionManagement from './pages/SessionManagement';
 import LogoutSessionPage from './pages/LogoutSessionPage';
 
 import ControlsPage from './pages/ControlsPage';
 import HelpPage from './pages/HelpPage';
 
-import AarushAISecurityPage from './pages/AarushAISecurity';
 import AIAssistantCenter from './pages/AIAssistantCenter';
 import AIGuardianCenter from './pages/AIGuardianCenter';
 import AIPlatformCenter from './pages/AIPlatformCenter';
+import VoiceAssistantCenter from './pages/VoiceAssistantCenter';
+
 import BackupCenter from './pages/BackupCenter';
 import BusinessPlatformCenter from './pages/BusinessPlatformCenter';
+import CloudCenter from './pages/CloudCenter';
 import DeveloperPlatformCenter from './pages/DeveloperPlatformCenter';
 import EnterpriseAnalyticsCenter from './pages/EnterpriseAnalyticsCenter';
 import EnterpriseIdentityCenter from './pages/EnterpriseIdentityCenter';
@@ -98,16 +94,50 @@ import GlobalMediaCenter from './pages/GlobalMediaCenter';
 import GlobalScalingCenter from './pages/GlobalScalingCenter';
 import IntegrationCenter from './pages/IntegrationCenter';
 import LiveStreamingCenter from './pages/LiveStreamingCenter';
-import MarketplaceCenter from './pages/MarketplaceCenter';
 import MediaPerformanceCenter from './pages/MediaPerformanceCenter';
 import OfflineCenter from './pages/OfflineCenter';
-import OrdersCenter from './pages/OrdersCenter';
-import PaymentsCenter from './pages/PaymentsCenter';
-import PersonalizationSettingsPage from './pages/PersonalizationSettingsPage';
-import PersonalizedFeedPage from './pages/PersonalizedFeedPage';
 import ReliabilityCenter from './pages/ReliabilityCenter';
 import VideoInfrastructureCenter from './pages/VideoInfrastructureCenter';
-import VoiceAssistantCenter from './pages/VoiceAssistantCenter';
+
+let NotificationProvider = ({ children }) => children;
+
+try {
+  const notificationModule = require('./context/NotificationProvider');
+  NotificationProvider =
+    notificationModule.NotificationProvider ||
+    notificationModule.default ||
+    NotificationProvider;
+} catch {
+  try {
+    const notificationModule = require('./context/NotificationContext');
+    NotificationProvider =
+      notificationModule.NotificationProvider ||
+      notificationModule.default ||
+      NotificationProvider;
+  } catch {
+    // Notifications remain usable without an optional provider.
+  }
+}
+
+let LockScreen = null;
+
+try {
+  const lockModule = require('./components/AppLockGate');
+  LockScreen =
+    lockModule.AppLockGate ||
+    lockModule.default ||
+    null;
+} catch {
+  try {
+    const lockModule = require('./components/LockScreen');
+    LockScreen =
+      lockModule.LockScreen ||
+      lockModule.default ||
+      null;
+  } catch {
+    LockScreen = null;
+  }
+}
 
 const LOCK_STORAGE_KEY = 'aarush_app_locked';
 
@@ -148,6 +178,27 @@ function LoadingScreen() {
       <h1>Preparing Aarush</h1>
       <p>Restoring your secure session…</p>
       <span style={styles.loadingDot} />
+    </main>
+  );
+}
+
+function FallbackLockScreen({ onUnlock }) {
+  return (
+    <main style={styles.lockPage}>
+      <div style={styles.lockCard}>
+        <div style={styles.lockOrb}>
+          <ShieldCheck size={32} />
+        </div>
+        <h1>Aarush is locked</h1>
+        <p>Unlock to continue to your secure workspace.</p>
+        <button
+          type="button"
+          onClick={onUnlock}
+          style={styles.unlockButton}
+        >
+          Unlock Aarush
+        </button>
+      </div>
     </main>
   );
 }
@@ -231,8 +282,21 @@ function LockRoute({ session, locked, onUnlock }) {
     );
   }
 
+  if (LockScreen) {
+    return (
+      <LockScreen
+        onUnlock={() => {
+          onUnlock();
+          navigate(location.state?.from || '/home', {
+            replace: true,
+          });
+        }}
+      />
+    );
+  }
+
   return (
-    <Lock
+    <FallbackLockScreen
       onUnlock={() => {
         onUnlock();
         navigate(location.state?.from || '/home', {
@@ -317,6 +381,58 @@ function AppRoutes({
             path="/profile-settings"
             element={<ProfileSettings />}
           />
+          <Route
+            path="/profile/privacy"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/security"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/controls"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/notifications"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/chats"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/time-limited"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/time-limited-profile"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/screen-recording"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/screen-recording"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/screenshot-shield"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/screenshot-shield"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/profile/decoy-vault"
+            element={<ProfileSettings />}
+          />
+          <Route
+            path="/decoy-vault"
+            element={<ProfileSettings />}
+          />
 
           <Route
             path="/follow-requests"
@@ -357,7 +473,7 @@ function AppRoutes({
           />
           <Route
             path="/notification-settings"
-            element={<NotificationSettings />}
+            element={<NotificationPrivacy />}
           />
 
           <Route path="/chats" element={<ChatsPage />} />
@@ -410,25 +526,37 @@ function AppRoutes({
           />
           <Route
             path="/security-settings"
-            element={<SecuritySettings />}
+            element={<SecurityCenter />}
           />
           <Route
             path="/aarush-ai-security"
             element={<AarushAISecurity />}
           />
-          <Route path="/aarush-ai" element={<AarushAI />} />
+          <Route
+            path="/aarush-ai"
+            element={<AIAssistantCenter />}
+          />
           <Route
             path="/app-lock-settings"
             element={<AppLockSettings />}
           />
-          <Route path="/app-lock" element={<Lock />} />
+          <Route
+            path="/app-lock"
+            element={
+              <LockRoute
+                session={session}
+                locked={locked}
+                onUnlock={onUnlock}
+              />
+            }
+          />
           <Route
             path="/call-privacy-center"
             element={<CallPrivacyCenter />}
           />
           <Route
             path="/call-privacy"
-            element={<CallPrivacy />}
+            element={<CallPrivacyCenter />}
           />
           <Route
             path="/session-security"
@@ -443,8 +571,16 @@ function AppRoutes({
             element={<ZeroTrustCenter />}
           />
           <Route
+            path="/encryption"
+            element={<EncryptionCenter />}
+          />
+          <Route
             path="/encryption-center"
             element={<EncryptionCenter />}
+          />
+          <Route
+            path="/devices"
+            element={<DevicesCenter />}
           />
           <Route
             path="/devices-center"
@@ -455,7 +591,7 @@ function AppRoutes({
             path="/memories-vault"
             element={<MemoriesVault />}
           />
-          <Route path="/vault" element={<Vault />} />
+          <Route path="/vault" element={<MemoriesVault />} />
 
           <Route
             path="/creator-analytics"
@@ -481,6 +617,15 @@ function AppRoutes({
             path="/payout-settings"
             element={<PayoutSettings />}
           />
+          <Route
+            path="/marketplace"
+            element={<MarketplaceCenter />}
+          />
+          <Route
+            path="/payments"
+            element={<PaymentsCenter />}
+          />
+          <Route path="/orders" element={<OrdersCenter />} />
 
           <Route
             path="/account-switch"
@@ -521,6 +666,14 @@ function AppRoutes({
             element={<BusinessPlatformCenter />}
           />
           <Route
+            path="/cloud"
+            element={<CloudCenter />}
+          />
+          <Route
+            path="/cloud-center"
+            element={<CloudCenter />}
+          />
+          <Route
             path="/developer-platform"
             element={<DeveloperPlatformCenter />}
           />
@@ -553,32 +706,12 @@ function AppRoutes({
             element={<LiveStreamingCenter />}
           />
           <Route
-            path="/marketplace"
-            element={<MarketplaceCenter />}
-          />
-          <Route
             path="/media-performance"
             element={<MediaPerformanceCenter />}
           />
           <Route
             path="/offline-center"
             element={<OfflineCenter />}
-          />
-          <Route
-            path="/orders"
-            element={<OrdersCenter />}
-          />
-          <Route
-            path="/payments"
-            element={<PaymentsCenter />}
-          />
-          <Route
-            path="/personalization-settings"
-            element={<PersonalizationSettingsPage />}
-          />
-          <Route
-            path="/personalized-feed"
-            element={<PersonalizedFeedPage />}
           />
           <Route
             path="/reliability-center"
@@ -807,5 +940,63 @@ const styles = {
     background: 'rgba(255,247,237,.96)',
     boxShadow: '0 10px 30px rgba(15,23,42,.12)',
     fontSize: '.61rem',
+  },
+
+  lockPage: {
+    minHeight: '100vh',
+    display: 'grid',
+    placeItems: 'center',
+    padding: '1rem',
+    color: '#111827',
+    background:
+      'radial-gradient(circle at top,#ffffff,#f1f4f9 70%)',
+  },
+
+  lockCard: {
+    width: 'min(100%, 24rem)',
+    display: 'grid',
+    justifyItems: 'center',
+    gap: '.7rem',
+    padding: '2rem 1.25rem',
+    border: '1px solid rgba(124,92,255,.18)',
+    borderRadius: '1.35rem',
+    background: '#ffffff',
+    boxShadow: '0 20px 55px rgba(15,23,42,.12)',
+    textAlign: 'center',
+  },
+
+  lockOrb: {
+    width: '4.7rem',
+    height: '4.7rem',
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '1.2rem',
+    color: '#7c5cff',
+    background:
+      'linear-gradient(135deg,#f3f0ff,#eff6ff)',
+  },
+
+  lockPageH1: {
+    margin: 0,
+    fontSize: '1.15rem',
+  },
+
+  lockPageP: {
+    margin: 0,
+    color: '#64748b',
+    fontSize: '.72rem',
+  },
+
+  unlockButton: {
+    minHeight: '2.75rem',
+    padding: '0 1rem',
+    border: 0,
+    borderRadius: '999px',
+    color: '#ffffff',
+    background:
+      'linear-gradient(135deg,#7c5cff,#2563eb)',
+    fontSize: '.7rem',
+    fontWeight: 800,
+    cursor: 'pointer',
   },
 };

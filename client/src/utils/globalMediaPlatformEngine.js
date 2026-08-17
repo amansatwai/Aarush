@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
 import {
-  analyzeRegionalPerformance,
   getCDNAnalytics,
   getOrchestrationStatus,
   optimizeRegionalLatency,
@@ -24,16 +23,43 @@ const REGIONS = [
   'Oceania',
 ];
 
-function guestMode() {
-  if (typeof window === 'undefined') return false;
+function safeMetadata(metadata = {}) {
+  if (!metadata || typeof metadata !== 'object') {
+    return {};
+  }
 
-  return (
-    window.localStorage.getItem(
-      'aarush_is_guest'
-    ) === 'true' &&
-    window.localStorage.getItem(
-      'aarush_guest_session'
-    ) === 'active'
+  const blockedKeys = new Set([
+    'password',
+    'token',
+    'access_token',
+    'refresh_token',
+    'service_role_key',
+    'api_key',
+    'secret',
+    'biometric_data',
+    'session_secret',
+  ]);
+
+  return Object.entries(metadata).reduce((result, [key, value]) => {
+    if (!blockedKeys.has(String(key).toLowerCase())) {
+      result[key] = value;
+    }
+
+    return result;
+  }, {});
+}
+
+function normalizedRegions(regions) {
+  if (!Array.isArray(regions) || regions.length === 0) {
+    return [...REGIONS];
+  }
+
+  return Array.from(
+    new Set(
+      regions.filter((region) =>
+        REGIONS.includes(region)
+      )
+    )
   );
 }
 
@@ -43,7 +69,10 @@ async function requireUser() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   if (!user) {
     throw new Error(
       'Sign in to manage global media infrastructure.'
@@ -53,12 +82,7 @@ async function requireUser() {
   return user;
 }
 
-async function logEvent(
-  eventType,
-  metadata = {}
-) {
-  if (guestMode()) return null;
-
+async function logEvent(eventType, metadata = {}) {
   const user = await requireUser();
 
   const { data, error } = await supabase
@@ -66,54 +90,85 @@ async function logEvent(
     .insert({
       actor_id: user.id,
       event_type: eventType,
-      metadata,
+      metadata: safeMetadata(metadata),
       created_at: new Date().toISOString(),
     })
     .select()
     .maybeSingle();
 
-  if (error) return null;
+  if (error) {
+    return null;
+  }
 
   return data;
 }
 
+function toAssetAvailability(asset) {
+  if (!asset) {
+    return {
+      asset_id: null,
+      available: false,
+      regions: [],
+      status: 'not_found',
+    };
+  }
+
+  const regions = normalizedRegions(
+    asset.regions || asset.available_regions
+  );
+
+  return {
+    asset_id: asset.id,
+    available:
+      Boolean(asset.available) ||
+      asset.status === 'distributed' ||
+      asset.status === 'registered',
+    regions,
+    status: asset.status || 'registered',
+  };
+}
+
 export async function initializeGlobalMediaPlatform() {
   return {
-    enabled: !guestMode(),
-    guest: guestMode(),
-    regions: REGIONS,
+    enabled: true,
+    regions: [...REGIONS],
     edge_intelligence_ready: true,
     traffic_forecasting_ready: true,
   };
 }
 
-export async function registerMediaAsset(
-  payload = {}
-) {
-  if (guestMode()) {
-    return {
-      local_only: true,
-      ...payload,
-    };
-  }
-
+export async function registerMediaAsset(payload = {}) {
   const user = await requireUser();
+
+  const insertPayload = {
+    ...payload,
+    owner_id: user.id,
+    status: 'registered',
+    created_at: new Date().toISOString(),
+  };
+
+  delete insertPayload.id;
+  delete insertPayload.ownerId;
+  delete insertPayload.createdAt;
+  delete insertPayload.password;
+  delete insertPayload.token;
+  delete insertPayload.access_token;
+  delete insertPayload.refresh_token;
 
   const { data, error } = await supabase
     .from(ASSETS_TABLE)
-    .insert({
-      ...payload,
-      owner_id: user.id,
-      status: 'registered',
-      created_at: new Date().toISOString(),
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   await logEvent('media_asset_registered', {
     asset_id: data.id,
+    asset_type: data.type || data.media_type || null,
+    regions: normalizedRegions(data.regions),
   });
 
   return data;
@@ -123,77 +178,124 @@ export async function distributeToRegions(
   assetId,
   regions = REGIONS
 ) {
-  if (guestMode()) {
-    return {
-      local_only: true,
-      asset_id: assetId,
-      regions,
-    };
+  const user = await requireUser();
+
+  if (!assetId) {
+    throw new Error('A media asset ID is required.');
   }
 
-  const user = await requireUser();
+  const targetRegions = normalizedRegions(regions);
+  const now = new Date().toISOString();
 
   const { data, error } = await supabase
     .from(ASSETS_TABLE)
     .update({
-      regions,
+      regions: targetRegions,
+      available_regions: targetRegions,
       distribution_status: 'distributed',
-      updated_at: new Date().toISOString(),
+      status: 'distributed',
+      updated_at: now,
     })
     .eq('id', assetId)
     .eq('owner_id', user.id)
     .select()
-    .single();
+    .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  await logEvent('media_distributed', {
-    asset_id: assetId,
-    regions,
+  if (!data) {
+    throw new Error(
+      'Media asset was not found or is not owned by the authenticated user.'
+    );
+  }
+
+  await logEvent('media_asset_distributed', {
+    asset_id: data.id,
+    regions: targetRegions,
+    distribution_status: 'distributed',
   });
 
   return data;
 }
 
-export async function getGlobalAvailability(
-  assetId
-) {
+export async function getGlobalAvailability(assetId) {
+  const user = await requireUser();
+
+  if (!assetId) {
+    throw new Error('A media asset ID is required.');
+  }
+
   const { data, error } = await supabase
     .from(ASSETS_TABLE)
-    .select('id, regions, distribution_status')
+    .select(
+      'id, owner_id, status, distribution_status, regions, available_regions, available'
+    )
     .eq('id', assetId)
+    .eq('owner_id', user.id)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  return {
-    asset_id: assetId,
-    available: Boolean(data),
-    regions: data?.regions || [],
-    status: data?.distribution_status || 'unknown',
-  };
+  return toAssetAvailability(data);
 }
 
 export async function optimizeGlobalDelivery(
   assetId,
   options = {}
 ) {
-  const route = await selectOptimalCDN({
-    region: options.region || 'India',
-    latency: options.latency,
+  const user = await requireUser();
+
+  if (!assetId) {
+    throw new Error('A media asset ID is required.');
+  }
+
+  const {
+    region = REGIONS[0],
+    latency = null,
+    adaptive_bitrate = true,
+    predictive_cache = true,
+    edge_transcoding = true,
+  } = options || {};
+
+  const cdn = await selectOptimalCDN({
+    region,
+    latency,
+    assetId,
+    userId: user.id,
   });
+
+  let cache = null;
+
+  if (typeof warmRegionalCache === 'function') {
+    cache = await warmRegionalCache({
+      assetId,
+      region,
+      cdn,
+      userId: user.id,
+    });
+  }
 
   await logEvent('global_delivery_optimized', {
     asset_id: assetId,
-    route,
+    region,
+    cdn,
+    adaptive_bitrate: Boolean(adaptive_bitrate),
+    predictive_cache: Boolean(predictive_cache),
+    edge_transcoding: Boolean(edge_transcoding),
   });
 
   return {
     asset_id: assetId,
-    route,
-    adaptive_bitrate: true,
-    predictive_cache: true,
-    edge_transcoding_ready: true,
+    region,
+    cdn,
+    cache,
+    adaptive_bitrate_ready: Boolean(adaptive_bitrate),
+    predictive_cache_ready: Boolean(predictive_cache),
+    edge_transcoding_ready: Boolean(edge_transcoding),
   };
 }
 
@@ -216,60 +318,43 @@ export async function predictTrafficDemand() {
   };
 }
 
-export async function rebalanceMediaTraffic(
-  metadata = {}
-) {
-  if (guestMode()) {
-    throw new Error(
-      'Guests cannot rebalance global media traffic.'
-    );
-  }
-
+export async function rebalanceMediaTraffic(metadata = {}) {
   await requireUser();
 
-  const result = await analyzeRegionalPerformance();
+  const performance = await analyzeRegionalPerformance();
 
   await logEvent('traffic_rebalanced', {
-    ...metadata,
-    result,
+    ...safeMetadata(metadata),
+    performance,
   });
 
-  return {
-    rebalanced: true,
-    result,
-  };
+  return performance;
 }
 
 export async function getGlobalPlatformStatus() {
-  if (guestMode()) {
-    return {
-      enabled: false,
-      guest: true,
-      status: 'local-only',
-    };
-  }
+  await requireUser();
 
-  const orchestration =
-    getOrchestrationStatus();
-  const regional =
-    await analyzeRegionalPerformance();
-  const demand =
-    await predictTrafficDemand();
+  const [orchestration, regionalAnalytics, trafficDemand] =
+    await Promise.all([
+      getOrchestrationStatus(),
+      analyzeRegionalPerformance(),
+      predictTrafficDemand(),
+    ]);
 
   return {
     enabled: true,
-    guest: false,
     status: 'operational',
     orchestration,
-    regional,
-    demand,
-    global_availability: 'prepared',
+    regional_analytics: regionalAnalytics,
+    traffic_demand: trafficDemand,
   };
 }
 
-export function subscribeToGlobalMediaEvents(
-  callback
-) {
+export function subscribeToGlobalMediaEvents(callback) {
+  if (typeof callback !== 'function') {
+    return () => {};
+  }
+
   const channel = supabase
     .channel('aarush-global-media')
     .on(
@@ -279,7 +364,12 @@ export function subscribeToGlobalMediaEvents(
         schema: 'public',
         table: ASSETS_TABLE,
       },
-      callback
+      (payload) => {
+        callback({
+          type: 'asset',
+          payload,
+        });
+      }
     )
     .on(
       'postgres_changes',
@@ -288,9 +378,22 @@ export function subscribeToGlobalMediaEvents(
         schema: 'public',
         table: EVENTS_TABLE,
       },
-      callback
+      (payload) => {
+        callback({
+          type: 'event',
+          payload,
+        });
+      }
     )
-    .subscribe();
+    .subscribe((status, error) => {
+      if (error) {
+        callback({
+          type: 'subscription_error',
+          error,
+          status,
+        });
+      }
+    });
 
   return () => {
     supabase.removeChannel(channel);

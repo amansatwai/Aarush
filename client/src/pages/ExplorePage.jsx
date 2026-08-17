@@ -37,8 +37,7 @@ import {
 import {
   followUser,
   isFollowing,
-} from '../engine/followEngine';
-
+} from '../utils/followEngine';
 const PAGE_SIZE = 18;
 const CREATOR_PAGE_SIZE = 12;
 const SEARCH_DELAY = 350;
